@@ -1,27 +1,17 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState } from "react";
 
-const PopupForm = ({
+const PopupCoForm = ({
   datos,
   registerID,
   onAddFormSet,
-  togglePopup,
+  togglePopupCo,
   formSets,
 }) => {
-  const tag = datos && datos.Tag ? datos.Tag[0].name : null;
-
-  const getNextDeliveryNumber = () => {
-    let nextNumber = 1;
-    const validFormSets = formSets.filter((item) => item.Name !== "CO");
-    if (validFormSets.length > 0) {
-      nextNumber = validFormSets.length + 1;
-    }
-    return nextNumber.toString();
-  };
+  console.log("Form", formSets);
 
   const [formData, setFormData] = useState({
-    Name: getNextDeliveryNumber(),
-    Estado: "Pendiente",
+    Name: "CO",
+    Estado: "",
     Coordinacion_asociada: registerID,
     Paginas_a_entregar: "",
     Fecha_entrega_profesional: "",
@@ -29,11 +19,12 @@ const PopupForm = ({
     Fecha_reagendada: "",
     Comentario: "",
     Hora: "",
-    // Correcciones: "",
+    Correcciones: "",
     Urgente: false,
     Entreg_adelantado: false,
-    Entrega_Gestor: "",
   });
+
+  const tag = datos && datos.Tag ? datos.Tag[0].name : null;
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -42,7 +33,6 @@ const PopupForm = ({
       [name]: type === "checkbox" ? checked : value,
     }));
   };
-
   useEffect(() => {
     if (formData.Fecha_entrega_profesional) {
       const nextWorkingDay = getNextWorkingDay(
@@ -56,38 +46,13 @@ const PopupForm = ({
     }
   }, [formData.Fecha_entrega_profesional]);
 
-  useEffect(() => {
-    obtenerGestor();
-  }, []);
-
-  const obtenerGestor = async () => {
-    const data = {
-      arguments: JSON.stringify({
-        coord_actual_id: registerID,
-      }),
-    };
-    try {
-      const response = await window.ZOHO.CRM.FUNCTIONS.execute(
-        "calcularnumeracionentregagestorindependiente",
-        data
-      );
-      const gestor = response.details.output;
-      setFormData((prevData) => ({
-        ...prevData,
-        Entrega_Gestor: gestor,
-      }));
-    } catch (error) {
-      console.error("Error executing function:", error);
-    }
-  };
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     onAddFormSet(formData);
-
+    console.log(formData);
     setFormData({
-      Name: "",
-      Estado: "Pendiente",
+      Name: "CO",
+      Estado: "",
       Coordinacion_asociada: registerID,
       Paginas_a_entregar: "",
       Fecha_entrega_profesional: "",
@@ -95,13 +60,11 @@ const PopupForm = ({
       Fecha_reagendada: "",
       Comentario: "",
       Hora: "",
-      // Correcciones: "",
+      Correcciones: "",
       Urgente: false,
       Entreg_adelantado: false,
-      Entrega_Gestor: "",
     });
-
-    togglePopup(); // Cierra el popup
+    togglePopupCo(); // Cierra el popup
   };
 
   const getNextWorkingDay = (startDate, numberOfDays) => {
@@ -122,26 +85,11 @@ const PopupForm = ({
 
   return (
     <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center bg-gray-800 bg-opacity-50 z-50">
-      <div className="bg-white p-8 rounded-lg shadow-lg w-[30%] ">
+      <div className="bg-white p-8 rounded-lg shadow-lg w-[30%]">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold mb-4"> Nueva Entrada</h2>
         </div>
         <form onSubmit={handleSubmit}>
-          <div className="mb-4 flex items-center justify-between ">
-            <label
-              htmlFor="Name"
-              className="block text-sm font-medium text-gray-700 mr-4"
-            >
-              Nº Entrega Gestor
-            </label>
-            <input
-              type="text"
-              id="Entrega_Gestor"
-              name="Entrega_Gestor"
-              value={formData.Entrega_Gestor}
-              className="block border-2 w-[125px] text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          </div>
           <div className="mb-4 flex items-center">
             <label
               htmlFor="Paginas_a_entregar"
@@ -152,9 +100,9 @@ const PopupForm = ({
             <p>{formData.Name}</p>
           </div>
 
-          <div className="flex w-[100%] justify-between ">
-            <div className="w-[100%]  ">
-              <div className="mb-4 w-full flex items-center justify-between">
+          <div className="flex w-full justify-between">
+            <div className="w-[100%] ">
+              <div className="mb-4 flex items-center justify-between ">
                 <label
                   htmlFor="Estado"
                   className="block text-sm font-medium text-gray-700"
@@ -166,14 +114,14 @@ const PopupForm = ({
                   name="Estado"
                   value={formData.Estado}
                   onChange={handleChange}
-                  className="block  w-[125px]  border-2 px-2 border-gray-500 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ml-2"
+                  className="block w-[125px]  border-2 px-2 border-gray-500 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ml-2"
                 >
                   <option value="None">-None-</option>
-                  <option value="Pendiente">Pendiente</option>
+                  {/* <option value="Pendiente">Pendiente</option> */}
                   <option value="Entregada">Entregada</option>
                   <option value="Paralizada">Paralizada</option>
                   <option value="Retrasada">Retrasada</option>
-                  {/* <option value="Correcciones">Correcciones</option> */}
+                  <option value="Correcciones">Correcciones</option>
                   <option value="Entrega asignada">Entrega asignada</option>
                   <option value="Caida">Caida</option>
                 </select>
@@ -280,10 +228,35 @@ const PopupForm = ({
                   </div>
                 </div> */}
               </div>
-              <div className="mb-4">
+              <div className="mb-4 w-full flex items-center justify-between">
+                <label
+                  htmlFor="Correcciones"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Correcciones
+                </label>
+
+                <select
+                  id="Correcciones"
+                  name="Correcciones"
+                  value={formData.Correcciones}
+                  onChange={handleChange}
+                  className="block w-[125px] border-2 ml-4 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                >
+                  <option value="None">-None-</option>
+                  <option value="NA">NA</option>
+                  <option value="Relacionadas con el profesional">
+                    Relacionadas con el profesional
+                  </option>
+                  <option value="Relacionadas con cambios pedidos por el cliente">
+                    Relacionadas con cambios pedidos por el cliente
+                  </option>
+                </select>
+              </div>
+              <div className="mb-4 ">
                 <label
                   htmlFor="Comentario"
-                  className="block text-sm font-medium text-gray-700"
+                  className="block  text-sm font-medium text-gray-700"
                 >
                   Comentario
                 </label>
@@ -303,6 +276,7 @@ const PopupForm = ({
                   className="mt-1 block w-full border-2 pl-2 pt-1 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 ></textarea>
               </div>
+
               <div className="flex justify-end gap-4">
                 <button
                   type="submit"
@@ -311,7 +285,7 @@ const PopupForm = ({
                   Agregar
                 </button>
                 <button
-                  onClick={() => togglePopup()}
+                  onClick={() => togglePopupCo()}
                   className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-500 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Cerrar
@@ -319,33 +293,7 @@ const PopupForm = ({
               </div>
             </div>
 
-            <div>
-              {/* <div className="mb-4 flex items-center">
-                <label
-                  htmlFor="Correcciones"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Correcciones
-                </label>
-
-                <select
-                  id="Correcciones"
-                  name="Correcciones"
-                  value={formData.Correcciones}
-                  onChange={handleChange}
-                  className="block border-2 ml-4 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                >
-                  <option value="None">-None-</option>
-                  <option value="NA">NA</option>
-                  <option value="Relacionadas con el profesional">
-                    Relacionadas con el profesional
-                  </option>
-                  <option value="Relacionadas con cambios pedidos por el cliente">
-                    Relacionadas con cambios pedidos por el cliente
-                  </option>
-                </select>
-              </div> */}
-            </div>
+            <div></div>
           </div>
         </form>
       </div>
@@ -353,4 +301,4 @@ const PopupForm = ({
   );
 };
 
-export default PopupForm;
+export default PopupCoForm;

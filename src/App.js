@@ -1,7 +1,7 @@
 import "./App.css";
 import { useEffect, useState } from "react";
 import Home from "./pages/Home";
-import { execute, getRecord } from "./functions/apiFunctions";
+import { getRecord } from "./functions/apiFunctions";
 
 function App(data) {
   const module = data.data.Entity;

@@ -142,15 +142,8 @@ export function updateRecord(APIData) {
       Trigger: ["workflow"],
     })
       .then(function (data) {
-        Swal.fire({
-          icon: "success",
-          title: "Registro actualizado",
-          position: "top-end",
-          // toast: true,
-          showConfirmButton: false,
-          timer: 2000,
-        });
         console.log(data);
+        window.location.reload();
       })
       .catch(function (error) {
         Swal.fire({
