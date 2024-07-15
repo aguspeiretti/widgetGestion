@@ -4,7 +4,7 @@ import { getRelatedRecords } from "../functions/apiFunctions";
 const useRecordStore = create((set) => ({
   records: [],
 
-  getRelatedRecords: async (registerID) => {
+  getRelatedRecord: async (registerID) => {
     try {
       getRelatedRecords("Coordinacion", registerID, "Entregas_asociadas").then(
         function (result) {

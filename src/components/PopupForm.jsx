@@ -1,26 +1,51 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState } from "react";
+import Swal from "sweetalert2";
+import { getRelatedRecords } from "../functions/apiFunctions";
 
 const PopupForm = ({
   datos,
   registerID,
   onAddFormSet,
+  onAddFormSet2,
   togglePopup,
   formSets,
 }) => {
   const tag = datos && datos.Tag ? datos.Tag[0].name : null;
+  console.log("formsets", formSets);
 
-  const getNextDeliveryNumber = () => {
+  const getRecords = async () => {
+    try {
+      const response = await getRelatedRecords(
+        "Coordinacion",
+        registerID,
+        "Entregas_asociadas"
+      );
+      const registros = response.register || [];
+      console.log("Respuestar", registros);
+
+      const validFormSets = registros.filter((item) => item.Name !== "CO");
+      console.log(validFormSets);
+
+      return registros;
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const getNextDeliveryNumber = async () => {
+    const cantidadActual = await getRecords();
+    console.log(cantidadActual);
     let nextNumber = 1;
-    const validFormSets = formSets.filter((item) => item.Name !== "CO");
+    const validFormSets = cantidadActual.filter((item) => item.Name !== "CO");
+    console.log(validFormSets.length);
     if (validFormSets.length > 0) {
       nextNumber = validFormSets.length + 1;
     }
     return nextNumber.toString();
   };
-
   const [formData, setFormData] = useState({
-    Name: getNextDeliveryNumber(),
+    Name: "",
     Estado: "Pendiente",
     Coordinacion_asociada: registerID,
     Paginas_a_entregar: "",
@@ -34,7 +59,6 @@ const PopupForm = ({
     Entreg_adelantado: false,
     Entrega_Gestor: "",
   });
-
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prevData) => ({
@@ -42,7 +66,6 @@ const PopupForm = ({
       [name]: type === "checkbox" ? checked : value,
     }));
   };
-
   useEffect(() => {
     if (formData.Fecha_entrega_profesional) {
       const nextWorkingDay = getNextWorkingDay(
@@ -55,11 +78,19 @@ const PopupForm = ({
       }));
     }
   }, [formData.Fecha_entrega_profesional]);
-
   useEffect(() => {
     obtenerGestor();
-  }, []);
+    getRecords();
+    const fetchNextDeliveryNumber = async () => {
+      const nextNumber = await getNextDeliveryNumber();
+      setFormData((prevData) => ({
+        ...prevData,
+        Name: nextNumber,
+      }));
+    };
 
+    fetchNextDeliveryNumber();
+  }, []);
   const obtenerGestor = async () => {
     const data = {
       arguments: JSON.stringify({
@@ -80,9 +111,19 @@ const PopupForm = ({
       console.error("Error executing function:", error);
     }
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (
+      !formData.Fecha_entrega_cliente ||
+      !formData.Fecha_entrega_profesional
+    ) {
+      Swal.fire({
+        icon: "error",
+        title: "Campos obligatorios",
+        text: "Fecha de cliente y entrega profesional son obligatorios",
+      });
+      return;
+    }
     onAddFormSet(formData);
 
     setFormData({
@@ -103,7 +144,48 @@ const PopupForm = ({
 
     togglePopup(); // Cierra el popup
   };
+  const handleSubmitWhithNew = async (e) => {
+    e.preventDefault();
+    getRecords();
+    if (
+      !formData.Fecha_entrega_cliente ||
+      !formData.Fecha_entrega_profesional
+    ) {
+      Swal.fire({
+        icon: "error",
+        title: "Campos obligatorios",
+        text: "Fecha de cliente y entrega profesional son obligatorios",
+      });
+      return;
+    }
+    onAddFormSet2(formData);
 
+    setFormData({
+      Name: "",
+      Estado: "Pendiente",
+      Coordinacion_asociada: registerID,
+      Paginas_a_entregar: "",
+      Fecha_entrega_profesional: "",
+      Fecha_entrega_cliente: "",
+      Fecha_reagendada: "",
+      Comentario: "",
+      Hora: "",
+      // Correcciones: "",
+      Urgente: false,
+      Entreg_adelantado: false,
+      Entrega_Gestor: "",
+    });
+    obtenerGestor();
+    const fetchNextDeliveryNumber = async () => {
+      const nextNumber = await getNextDeliveryNumber();
+      setFormData((prevData) => ({
+        ...prevData,
+        Name: nextNumber,
+      }));
+    };
+
+    fetchNextDeliveryNumber();
+  };
   const getNextWorkingDay = (startDate, numberOfDays) => {
     let currentDate = new Date(startDate);
     let addedDays = 0;
@@ -119,6 +201,8 @@ const PopupForm = ({
 
     return currentDate.toISOString().split("T")[0]; // Formatea la fecha en YYYY-MM-DD
   };
+
+  const closeAndReload = () => {};
 
   return (
     <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center bg-gray-800 bg-opacity-50 z-50">
@@ -139,17 +223,25 @@ const PopupForm = ({
               id="Entrega_Gestor"
               name="Entrega_Gestor"
               value={formData.Entrega_Gestor}
+              onChange={handleChange}
               className="block border-2 w-[125px] text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
-          <div className="mb-4 flex items-center">
+          <div className="mb-4 flex items-center justify-between ">
             <label
               htmlFor="Paginas_a_entregar"
               className="block text-sm font-medium text-gray-700 mr-4"
             >
               Nº de entrega
             </label>
-            <p>{formData.Name}</p>
+            <input
+              type="text"
+              id="Name"
+              name="Name"
+              value={formData.Name}
+              onChange={handleChange}
+              className="block border-2 w-[125px] text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            />
           </div>
 
           <div className="flex w-[100%] justify-between ">
@@ -161,6 +253,7 @@ const PopupForm = ({
                 >
                   Estado
                 </label>
+
                 <select
                   id="Estado"
                   name="Estado"
@@ -242,7 +335,7 @@ const PopupForm = ({
                   className="block border-2 w-[125px] text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 />
               </div>
-              <div className="flex justify-between px-10 mt-10">
+              <div className="flex justify-between  mt-2">
                 <div className="mb-4 flex items-center">
                   <label
                     htmlFor="Urgente"
@@ -308,10 +401,16 @@ const PopupForm = ({
                   type="submit"
                   className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
-                  Agregar
+                  Guardar
                 </button>
+                <div
+                  onClick={handleSubmitWhithNew}
+                  className="cursor-pointer inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  Guardar y nuevo
+                </div>
                 <button
-                  onClick={() => togglePopup()}
+                  onClick={() => window.location.reload()}
                   className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-500 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Cerrar

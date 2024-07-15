@@ -117,6 +117,26 @@ export function insertRecord(APIData) {
       });
   });
 }
+export function insertRecord2(APIData) {
+  return new Promise(function (resolve, reject) {
+    window.ZOHO.CRM.API.insertRecord({
+      Entity: "Entregas",
+      APIData: APIData,
+      Trigger: ["workflow"],
+    })
+      .then(function (data) {
+        Swal.fire(
+          "Agregado",
+          "El registro se ha agregado correctamente",
+          "success"
+        );
+        console.log(data);
+      })
+      .catch(function (error) {
+        reject(error);
+      });
+  });
+}
 
 export function deleteRecord(id) {
   return new Promise(function (resolve, reject) {

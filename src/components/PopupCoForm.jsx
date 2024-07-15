@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import Swal from "sweetalert2";
 
 const PopupCoForm = ({
   datos,
@@ -11,7 +12,7 @@ const PopupCoForm = ({
 
   const [formData, setFormData] = useState({
     Name: "CO",
-    Estado: "",
+    Estado: "Correcciones",
     Coordinacion_asociada: registerID,
     Paginas_a_entregar: "",
     Fecha_entrega_profesional: "",
@@ -22,6 +23,7 @@ const PopupCoForm = ({
     Correcciones: "",
     Urgente: false,
     Entreg_adelantado: false,
+    Entrega_Gestor: "CO",
   });
 
   const tag = datos && datos.Tag ? datos.Tag[0].name : null;
@@ -48,11 +50,33 @@ const PopupCoForm = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (
+      formData.Estado === "Correcciones" &&
+      (!formData.Correcciones || formData.Correcciones === "None")
+    ) {
+      Swal.fire({
+        icon: "error",
+        title: "Campos obligatorios",
+        text: "Debe seleccionar un tipo de correccion",
+      });
+      return;
+    }
+    if (
+      !formData.Fecha_entrega_cliente ||
+      !formData.Fecha_entrega_profesional
+    ) {
+      Swal.fire({
+        icon: "error",
+        title: "Campos obligatorios",
+        text: "Fecha de cliente y entrega profesional son obligatorios",
+      });
+      return;
+    }
     onAddFormSet(formData);
     console.log(formData);
     setFormData({
       Name: "CO",
-      Estado: "",
+      Estado: "Correcciones",
       Coordinacion_asociada: registerID,
       Paginas_a_entregar: "",
       Fecha_entrega_profesional: "",
@@ -63,6 +87,7 @@ const PopupCoForm = ({
       Correcciones: "",
       Urgente: false,
       Entreg_adelantado: false,
+      Entrega_Gestor: "CO",
     });
     togglePopupCo(); // Cierra el popup
   };
@@ -190,7 +215,7 @@ const PopupCoForm = ({
                   className="block border-2 w-[125px] text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 />
               </div>
-              <div className="flex justify-between px-10 mt-10">
+              <div className="flex justify-between mt-2">
                 <div className="mb-4 flex items-center">
                   <label
                     htmlFor="Urgente"
@@ -209,24 +234,6 @@ const PopupCoForm = ({
                     />
                   </div>
                 </div>
-                {/* <div className="mb-4 flex items-center">
-                  <label
-                    htmlFor="Entreg_adelantado"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Entregó adelantado
-                  </label>
-                  <div className="flex justify-center items-center">
-                    <input
-                      type="checkbox"
-                      id="Entreg_adelantado"
-                      name="Entreg_adelantado"
-                      checked={formData.Entreg_adelantado}
-                      onChange={handleChange}
-                      className="rounded-md w-4 h-4 mt-1 ml-6"
-                    />
-                  </div>
-                </div> */}
               </div>
               <div className="mb-4 w-full flex items-center justify-between">
                 <label
