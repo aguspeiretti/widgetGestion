@@ -182,7 +182,7 @@ const Home = ({ datos, registerID }) => {
 
           Swal.fire(
             "Eliminado",
-            "El registro se ha eliminado correctamente",
+            "El registro se ha eliminado correctamente.",
             "success"
           );
         } else {
