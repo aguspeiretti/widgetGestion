@@ -6,18 +6,29 @@ const useRecordStore = create((set) => ({
 
   getRelatedRecord: async (registerID) => {
     try {
-      getRelatedRecords("Coordinacion", registerID, "Entregas_asociadas").then(
-        function (result) {
-          const datos = result.register.map((record) => ({
-            id: record.id,
-            ...record,
-          }));
-          set({ records: datos });
-        }
+      const result = await getRelatedRecords(
+        "Coordinacion",
+        registerID,
+        "Entregas_asociadas"
       );
+
+      // Asegúrate de que result.register es un array
+      if (Array.isArray(result.register)) {
+        const datos = result.register.map((record) => ({
+          id: record.id,
+          ...record,
+        }));
+        set({ records: datos });
+      } else {
+        console.warn(
+          "Expected result.register to be an array, but it is not:",
+          result.register
+        );
+        set({ records: [] }); // O maneja el estado según tu necesidad
+      }
     } catch (error) {
-      console.log(error);
-      set({ error: error.response.data.message });
+      console.error("Error fetching related records:", error);
+      set({ error: error.message || "An error occurred" });
     }
   },
 }));

@@ -15,6 +15,7 @@ const PopupForm = ({
 }) => {
   const tag = datos && datos.Tag ? datos.Tag[0].name : null;
   const [commentEdited, setCommentEdited] = useState(false);
+  const [registros, setRegistros] = useState([]);
   const [formData, setFormData] = useState({
     Name: "",
     Estado: "Pendiente",
@@ -40,6 +41,7 @@ const PopupForm = ({
     clientDate: null,
     professionalDate: null,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false); // Inicia el estado de carga]
 
   const getRecords = async () => {
     try {
@@ -49,9 +51,9 @@ const PopupForm = ({
         "Entregas_asociadas"
       );
       const registros = response.register || [];
+      setRegistros(registros);
 
       const validFormSets = registros.filter((item) => item.Name !== "CO");
-      console.log(validFormSets);
 
       return registros;
     } catch (error) {
@@ -60,15 +62,27 @@ const PopupForm = ({
   };
   const getNextDeliveryNumber = async () => {
     const cantidadActual = await getRecords();
-    console.log("1", cantidadActual);
+
     let nextNumber = 1;
     const validFormSets = cantidadActual.filter((item) => item.Name !== "CO");
-    console.log(validFormSets.length);
+
     if (validFormSets.length > 0) {
       nextNumber = validFormSets.length + 1;
     }
     return nextNumber.toString();
   };
+  useEffect(() => {
+    if (formData.Fecha_entrega_profesional) {
+      const nextWorkingDay = getNextWorkingDay(
+        formData.Fecha_entrega_profesional,
+        2
+      );
+      setFormData((prevData) => ({
+        ...prevData,
+        Fecha_entrega_cliente: nextWorkingDay,
+      }));
+    }
+  }, [formData.Fecha_entrega_profesional]);
 
   const obtenerGestor = async () => {
     const data = {
@@ -92,19 +106,6 @@ const PopupForm = ({
   };
 
   useEffect(() => {
-    if (formData.Fecha_entrega_profesional) {
-      const nextWorkingDay = getNextWorkingDay(
-        formData.Fecha_entrega_profesional,
-        2
-      );
-      setFormData((prevData) => ({
-        ...prevData,
-        Fecha_entrega_cliente: nextWorkingDay,
-      }));
-    }
-  }, [formData.Fecha_entrega_profesional]);
-
-  useEffect(() => {
     obtenerGestor();
     getRecords();
     const fetchNextDeliveryNumber = async () => {
@@ -116,16 +117,26 @@ const PopupForm = ({
     };
 
     fetchNextDeliveryNumber();
-  }, []);
+  }, [registerID]);
 
   useEffect(() => {
-    if (records && records.length > 0) {
+    console.log("registros---->", registros);
+    if (records) {
       findLatestDates();
     }
-  }, [records]);
+  }, [registros, records]);
+
+  const getInitialComment = (tag) => {
+    if (tag === "Para traducir") return "PARA TRADUCIR";
+    if (tag === "Traducir") return "TRADUCCION";
+    return "";
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return; // Evita envíos si ya se está procesando
+
+    setIsSubmitting(true);
     await obtenerGestor();
     await getRecords();
     if (
@@ -139,6 +150,8 @@ const PopupForm = ({
         title: "Campos obligatorios",
         text: "Fecha de cliente , entrega profesional , paginas y gestor son obligatorios",
       });
+      setCommentEdited(false);
+      setIsSubmitting(false); // Inicia el estado de carga
       return;
     }
     let finalCommentValue = formData.Comentario;
@@ -193,7 +206,6 @@ const PopupForm = ({
     });
 
     if (tag === "Traducir") {
-      console.log("si es");
     }
 
     const togglePopups = () => {
@@ -203,16 +215,15 @@ const PopupForm = ({
     };
 
     togglePopups();
-  };
-
-  const getInitialComment = (tag) => {
-    if (tag === "Para traducir") return "PARA TRADUCIR";
-    if (tag === "Traducir") return "TRADUCCION";
-    return "";
+    setIsSubmitting(false); // Finaliza el estado de carga
   };
 
   const handleSubmitWhithNew = async (e) => {
     e.preventDefault();
+
+    if (isSubmitting) return; // Evita envíos si ya se está procesando
+
+    setIsSubmitting(true);
     await getRecords();
 
     if (
@@ -226,6 +237,7 @@ const PopupForm = ({
         title: "Campos obligatorios",
         text: "Fecha de cliente , entrega profesional , paginas y gestor son obligatorios",
       });
+      setIsSubmitting(false); // Finaliza el estado de carga
       return;
     }
     let finalCommentValue = formData.Comentario;
@@ -285,13 +297,16 @@ const PopupForm = ({
         Name: nextNumber,
       }));
     };
+
+    setTimeout(() => {
+      fetchNextDeliveryNumber();
+    }, 2000);
     setCommentEdited(false);
     setTimeout(() => {
       obtenerGestor();
     }, 2000);
-    fetchNextDeliveryNumber();
+    setIsSubmitting(false); // Inicia el estado de carga
   };
-
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
@@ -319,7 +334,6 @@ const PopupForm = ({
 
     return currentDate.toISOString().split("T")[0]; // Formatea la fecha en YYYY-MM-DD
   };
-
   function formatDate(dateString) {
     if (dateString) {
       // Check if dateString is not null
@@ -333,7 +347,7 @@ const PopupForm = ({
     let latestClientDate = null;
     let latestProfessionalDate = null;
 
-    records.forEach((record) => {
+    registros.forEach((record) => {
       if (record.Fecha_entrega_cliente) {
         const clientDate = new Date(record.Fecha_entrega_cliente);
         if (!latestClientDate || clientDate > latestClientDate) {
@@ -360,15 +374,14 @@ const PopupForm = ({
         : null,
     });
   };
-  if (latestDates && latestDates.clientDate) {
-    // Check if latestDates exists and clientDate has a value
-    const formattedClientDate = formatDate(latestDates.clientDate);
-    console.log(formattedClientDate); // Replace with your desired action
-  } else {
-    console.log(
-      "latestDates.clientDate is null or latestDates does not exist."
-    );
-  }
+
+  useEffect(() => {
+    if (records && records.length > 0) {
+      findLatestDates();
+    }
+  }, [records]);
+  const formattedClientDate = formatDate(latestDates?.clientDate ?? null);
+  console.log(formattedClientDate || "No hay fecha de cliente disponible");
 
   return (
     <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center bg-gray-950  bg-opacity-50 backdrop-blur-sm z-50 ">
@@ -585,24 +598,6 @@ const PopupForm = ({
                     />
                   </div>
                 </div>
-                {/* <div className="mb-4 flex items-center">
-                  <label
-                    htmlFor="Entreg_adelantado"
-                    className="block text-md 4xl:text-lg font-medium text-white"
-                  >
-                    Entregó adelantado
-                  </label>
-                  <div className="flex justify-center items-center">
-                    <input
-                      type="checkbox"
-                      id="Entreg_adelantado"
-                      name="Entreg_adelantado"
-                      checked={formData.Entreg_adelantado}
-                      onChange={handleChange}
-                      className="rounded-md w-4 h-4 mt-1 ml-6"
-                    />
-                  </div>
-                </div> */}
               </div>
               <div className="mb-4">
                 <label
@@ -626,12 +621,14 @@ const PopupForm = ({
               <div className="flex justify-end gap-4">
                 <button
                   type="submit"
+                  disabled={isSubmitting}
                   className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-md 4xl:text-lg font-medium rounded-md text-white bg-[#43d1a7] hover:bg-[#37c298] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Guardar
                 </button>
                 <div
                   onClick={handleSubmitWhithNew}
+                  disabled={isSubmitting}
                   className="cursor-pointer inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-md 4xl:text-lg font-medium rounded-md text-white bg-[#43d1a7] hover:bg-[#37c298] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Guardar y nuevo

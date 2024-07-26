@@ -11,8 +11,6 @@ const PopupCoForm = ({
   records,
   dark,
 }) => {
-  console.log(records);
-
   const tag = datos && datos.Tag ? datos.Tag[0].name : null;
   const [formData, setFormData] = useState({
     Name: "CO",
@@ -35,11 +33,23 @@ const PopupCoForm = ({
     Entrega_Gestor: "CO",
     Ocultar_entrega_gestor: "",
   });
-
+  const [registros, setRegistros] = useState([]);
   const [latestDates, setLatestDates] = useState({
     clientDate: null,
     professionalDate: null,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false); // Inicia el estado de carga]
+
+  useEffect(() => {
+    console.log("registros---->", registros);
+    if (records) {
+      findLatestDates();
+    }
+  }, [registros, records]);
+
+  useEffect(() => {
+    getRecords();
+  }, []);
 
   const getRecords = async () => {
     try {
@@ -49,9 +59,9 @@ const PopupCoForm = ({
         "Entregas_asociadas"
       );
       const registros = response.register || [];
+      setRegistros(registros);
 
       const validFormSets = registros.filter((item) => item.Name !== "CO");
-      console.log(validFormSets);
 
       return registros;
     } catch (error) {
@@ -82,6 +92,9 @@ const PopupCoForm = ({
   const handleSubmit = (e) => {
     getRecords();
     e.preventDefault();
+    if (isSubmitting) return; // Evita envíos si ya se está procesando
+
+    setIsSubmitting(true);
     if (
       formData.Estado === "Correcciones" &&
       (!formData.Correcciones || formData.Correcciones === "None")
@@ -102,6 +115,7 @@ const PopupCoForm = ({
         title: "Campos obligatorios",
         text: "Fecha de cliente y entrega profesional son obligatorios",
       });
+      setIsSubmitting(false); // Inicia el estado de carga
       return;
     }
     // Lógica para determinar Estado_entrega_cliente
@@ -148,6 +162,7 @@ const PopupCoForm = ({
       Entreg_adelantado: false,
       Entrega_Gestor: "CO",
     });
+    setIsSubmitting(false); // Inicia el estado de carga
     togglePopupCo(); // Cierra el popup
   };
 
@@ -176,20 +191,11 @@ const PopupCoForm = ({
     }
   }
 
-  if (latestDates && latestDates.clientDate) {
-    // Check if latestDates exists and clientDate has a value
-    const formattedClientDate = formatDate(latestDates.clientDate);
-    console.log(formattedClientDate); // Replace with your desired action
-  } else {
-    console.log(
-      "latestDates.clientDate is null or latestDates does not exist."
-    );
-  }
   const findLatestDates = () => {
     let latestClientDate = null;
     let latestProfessionalDate = null;
 
-    records.forEach((record) => {
+    registros.forEach((record) => {
       if (record.Fecha_entrega_cliente) {
         const clientDate = new Date(record.Fecha_entrega_cliente);
         if (!latestClientDate || clientDate > latestClientDate) {
@@ -222,6 +228,8 @@ const PopupCoForm = ({
       findLatestDates();
     }
   }, [records]);
+  const formattedClientDate = formatDate(latestDates?.clientDate ?? null);
+  console.log(formattedClientDate || "No hay fecha de cliente disponible");
 
   return (
     <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center bg-gray-800 bg-opacity-50 z-50">

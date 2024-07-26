@@ -39,14 +39,6 @@ const Home = ({ datos, registerID }) => {
     const savedDarkMode = localStorage.getItem("darkMode");
     return savedDarkMode ? JSON.parse(savedDarkMode) : false;
   });
-
-  // const filtredEntys =
-  //   filter === "Entrega Numerada"
-  //     ? entregasNumerdas.slice() // Realiza una copia del array
-  //     : filter === "Entrega Correcciones"
-  //     ? entregaCorrecciones.slice() // Realiza una copia del array
-  //     : formSets.slice(); // Realiza una copia del array
-  // console.log("filtred", filtredEntys);
   const filterMap = {
     "Entrega Numerada": entregasNumerdas,
     "Entrega Correcciones": entregaCorrecciones,
@@ -56,7 +48,7 @@ const Home = ({ datos, registerID }) => {
 
   useEffect(() => {
     getRelatedRecord(registerID);
-    console.log("zustand", records);
+
     cargarRegistros();
   }, []);
 
@@ -67,6 +59,7 @@ const Home = ({ datos, registerID }) => {
   useEffect(() => {
     getRecords();
   }, [records, tag]);
+
   const cargarRegistros = async () => {
     await getRelatedRecord(registerID);
   };
@@ -77,18 +70,37 @@ const Home = ({ datos, registerID }) => {
         registerID,
         "Entregas_asociadas"
       );
+
+      // Verifica si response y response.register están definidos y si es un array
+      if (!response || !Array.isArray(response.register)) {
+        throw new Error("La respuesta no contiene un array de registros");
+      }
+
+      // Procesa los registros
       const datos = response.register.map((record) => ({
         id: record.id,
         ...record,
       }));
+
+      // Ordena los registros por fecha
       const orderedFormSets = datos.sort((a, b) => {
+        // Asegúrate de que las fechas están en un formato válido
         const fechaA = new Date(a.Fecha_entrega_profesional);
         const fechaB = new Date(b.Fecha_entrega_profesional);
+        if (isNaN(fechaA) || isNaN(fechaB)) {
+          console.warn(
+            "Una de las fechas no es válida:",
+            a.Fecha_entrega_profesional,
+            b.Fecha_entrega_profesional
+          );
+          return 0; // Si las fechas no son válidas, no ordena estas entradas
+        }
         return fechaA - fechaB;
       });
+
       setFormSets(orderedFormSets);
     } catch (error) {
-      console.error(error);
+      console.error("Error al obtener registros:", error);
     }
   };
   const togglePopup = () => {
@@ -150,16 +162,56 @@ const Home = ({ datos, registerID }) => {
     });
 
     if (result.isConfirmed) {
-      await deleteRecord(id, datos, registerID);
-      setFormSets((prevFormSets) =>
-        prevFormSets.filter((form) => form.id !== id)
-      );
+      try {
+        Swal.fire({
+          title: "Eliminando entrega",
+          text: "Por favor espere...",
+          allowOutsideClick: false,
+          showConfirmButton: false,
+          willOpen: () => {
+            Swal.showLoading();
+          },
+        });
 
-      Swal.fire(
-        "Eliminado",
-        "El registro se ha eliminado correctamente",
-        "success"
-      );
+        const deleteResult = await deleteRecord(id, false);
+
+        if (deleteResult.status === "success") {
+          setFormSets((prevFormSets) =>
+            prevFormSets.filter((form) => form.id !== id)
+          );
+
+          Swal.fire(
+            "Eliminado",
+            "El registro se ha eliminado correctamente",
+            "success"
+          );
+        } else {
+          let errorMessage = "No se pudo eliminar el registro. ";
+          if (deleteResult.error) {
+            errorMessage += `Error: ${deleteResult.error}`;
+          }
+          if (deleteResult.details) {
+            errorMessage += ` Detalles: ${JSON.stringify(
+              deleteResult.details
+            )}`;
+          }
+
+          console.error("Error al eliminar el registro:", deleteResult);
+
+          Swal.fire({
+            title: "Error",
+            text: errorMessage,
+            icon: "error",
+          });
+        }
+      } catch (error) {
+        console.error("Error inesperado al eliminar el registro:", error);
+        Swal.fire(
+          "Error",
+          "Hubo un problema inesperado al eliminar el registro",
+          "error"
+        );
+      }
     } else {
       Swal.fire("Cancelado", "El registro no se ha eliminado", "info");
     }
@@ -273,11 +325,9 @@ const Home = ({ datos, registerID }) => {
       }
     });
 
-    console.log("Datos a actualizar:", updatedData);
-
     try {
       const result = await updateRecord(updatedData);
-      console.log("Resultado de la actualización:", result);
+
       // Asumiendo que result.data contiene los datos actualizados
       return result.data;
     } catch (error) {
@@ -309,12 +359,8 @@ const Home = ({ datos, registerID }) => {
         showConfirmButton: false,
         timer: 2000,
       });
-      console.log(
-        "ACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1"
-      );
-      window.ZOHO.CRM.UI.Popup.closeReload().then(function (data) {
-        console.log(data);
-      });
+
+      window.ZOHO.CRM.UI.Popup.closeReload().then(function (data) {});
     } catch (error) {
       console.error("Error al guardar los cambios:", error);
       Swal.fire({
@@ -347,9 +393,7 @@ const Home = ({ datos, registerID }) => {
         showConfirmButton: false,
         timer: 2000,
       });
-      console.log(
-        "ACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2"
-      );
+
       window.ZOHO.CRM.BLUEPRINT.proceed();
     } catch (error) {
       console.error("Error al guardar los cambios:", error);
@@ -382,9 +426,7 @@ const Home = ({ datos, registerID }) => {
     }
   };
   const closeWidget = () => {
-    window.ZOHO.CRM.UI.Popup.close().then(function (data) {
-      console.log(data);
-    });
+    window.ZOHO.CRM.UI.Popup.close().then(function (data) {});
   };
   function truncateText(text, maxLength) {
     if (text.length > maxLength) {
@@ -672,7 +714,7 @@ const Home = ({ datos, registerID }) => {
                               handleFieldChange(index, "Name", e.target.value)
                             }
                             disabled={form.Name === "CO"} // Deshabilitar si el valor es "CO"
-                            value={form.Name}
+                            value={form.Name || ""}
                             className={`block border-2 text-lg w-[50px]  text-center bg-transparent border-none rounded-md shadow-sm ${
                               dark ? "bg-[#222631]" : "bg-white"
                             } text-white text-[14px] ${
@@ -710,7 +752,7 @@ const Home = ({ datos, registerID }) => {
                             )
                           }
                           disabled={form.Name === "CO"} // Deshabilitar si el valor es "CO"
-                          value={form.Entrega_Gestor}
+                          value={form.Entrega_Gestor || ""}
                           className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
                             dark ? "bg-[#222631]" : "bg-white"
                           } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
@@ -824,7 +866,7 @@ const Home = ({ datos, registerID }) => {
                                 e.target.value
                               )
                             }
-                            value={form.Paginas_a_entregar}
+                            value={form.Paginas_a_entregar || ""}
                             className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
                               dark ? "bg-[#222631]" : "bg-white"
                             } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
@@ -852,7 +894,7 @@ const Home = ({ datos, registerID }) => {
                                 e.target.value
                               );
                             }}
-                            value={form.Fecha_entrega_profesional}
+                            value={form.Fecha_entrega_profesional || ""}
                             className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
                               dark ? "bg-[#222631]" : "bg-white"
                             } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
@@ -872,7 +914,7 @@ const Home = ({ datos, registerID }) => {
                           type="date"
                           id={`Fecha_entrega_cliente_${index}`}
                           name={`Fecha_entrega_cliente_${index}`}
-                          value={form.Fecha_entrega_cliente}
+                          value={form.Fecha_entrega_cliente || ""}
                           required
                           onChange={(e) =>
                             handleFieldChange(
@@ -907,7 +949,7 @@ const Home = ({ datos, registerID }) => {
                               e.target.value
                             )
                           }
-                          value={form.Fecha_reagendada}
+                          value={form.Fecha_reagendada || ""}
                           className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
                             dark ? "bg-[#222631]" : "bg-white"
                           }  ${dark ? "text-[#dddee0]" : "text-zinc-800"} `}
@@ -929,7 +971,7 @@ const Home = ({ datos, registerID }) => {
                           onChange={(e) =>
                             handleFieldChange(index, "Hora", e.target.value)
                           }
-                          value={form.Hora}
+                          value={form.Hora || ""}
                           className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
                             dark ? "bg-[#222631]" : "bg-white"
                           } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
@@ -982,7 +1024,7 @@ const Home = ({ datos, registerID }) => {
                         <input
                           id={`Comentario_${index}`}
                           name={`Comentario_${index}`}
-                          value={form.Comentario}
+                          value={form.Comentario || ""}
                           onChange={(e) =>
                             handleFieldChange(
                               index,

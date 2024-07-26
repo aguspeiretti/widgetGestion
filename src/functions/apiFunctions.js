@@ -175,8 +175,10 @@ export function deleteRecord(id, shouldReload = false) {
         if (
           data &&
           data.data &&
-          data.data[0] &&
-          data.data[0].status === "success"
+          Array.isArray(data.data) &&
+          data.data.length > 0 &&
+          data.data[0].status === "success" &&
+          data.data[0].code === "SUCCESS"
         ) {
           if (shouldReload) {
             window.location.reload();
@@ -194,7 +196,7 @@ export function deleteRecord(id, shouldReload = false) {
       })
       .catch((error) => {
         console.error(`Error al eliminar la entrega ${id}:`, error);
-        resolve({ status: "error", error: error });
+        resolve({ status: "error", error: error.toString() });
       });
   });
 }
