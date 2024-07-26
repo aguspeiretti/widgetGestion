@@ -12,6 +12,11 @@ module.exports = {
       fontFamily: {
         mundo: "url('./src/assets/fonts/Quicksand-VariableFont_wght.ttf)",
       },
+      screens: {
+        "3xl": "1600px",
+        "4xl": "1800px",
+        "5xl": "1900px",
+      },
     },
   },
   plugins: [],

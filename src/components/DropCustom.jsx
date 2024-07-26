@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-const DropCustom = ({ options, value, onChange, className }) => {
+const DropCustom = ({ options, value, onChange, className, dark }) => {
   const [isOpen, setIsOpen] = useState(false);
   const selectedOption = options.find((option) => option.value === value);
 
@@ -14,7 +14,13 @@ const DropCustom = ({ options, value, onChange, className }) => {
   };
 
   return (
-    <div className="cursor-pointer bg-white block relative border-2 w-[125px] text-xs text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+    <div
+      className={`cursor-pointer ${
+        dark ? " bg-[#222631]" : "bg-white"
+      }  block relative border-none p-1 w-[125px] text-[15px] text-center border-gray-300 rounded-md shadow-sm ${
+        dark ? " text-white" : "text-black"
+      }`}
+    >
       <div className="dropdown-trigger" onClick={handleToggleDropdown}>
         {selectedOption ? (
           <div className="flex items-center justify-start ml-2 ">
@@ -29,7 +35,11 @@ const DropCustom = ({ options, value, onChange, className }) => {
         )}
       </div>
       {isOpen && (
-        <div className="dropdown-content  absolute top-5 right-[-15px] bg-white w-40 h-60 rounded-md border-[2px] z-10  ">
+        <div
+          className={`dropdown-content  absolute top-5 right-[-15px] ${
+            dark ? "bg-[#222631]" : "bg-white"
+          } w-40 h-60 rounded-md border-[2px] z-10  `}
+        >
           {options.map((option) => (
             <div className="h-6 mt-1 hover:bg-slate-200 flex items-center justify-center ">
               <div className="w-[20%] flex justify-center ">

@@ -109,7 +109,6 @@ export function insertRecord(APIData) {
       Trigger: ["workflow"],
     })
       .then(function (data) {
-        window.location.reload();
         console.log(data);
       })
       .catch(function (error) {
@@ -138,34 +137,19 @@ export function insertRecord2(APIData) {
   });
 }
 
-export function deleteRecord(id) {
-  return new Promise(function (resolve, reject) {
-    window.ZOHO.CRM.API.deleteRecord({
-      Entity: "Entregas",
-      RecordID: id,
-    })
-      .then(function (data) {
-        window.location.reload();
-        console.log(data);
-      })
-      .catch(function (error) {
-        reject(error);
-      });
-  });
-}
-
 export function updateRecord(APIData) {
-  return new Promise(function (resolve, reject) {
+  return new Promise((resolve, reject) => {
     window.ZOHO.CRM.API.updateRecord({
       Entity: "Entregas",
       APIData: APIData,
       Trigger: ["workflow"],
     })
       .then(function (data) {
-        console.log(data);
-        window.location.reload();
+        console.log("Actualización exitosa:", data);
+        resolve(data); // Resolvemos la promesa con los datos actualizados
       })
       .catch(function (error) {
+        console.error("Error en la actualización:", error);
         Swal.fire({
           icon: "error",
           title: "Error al actualizar",
@@ -177,4 +161,66 @@ export function updateRecord(APIData) {
         reject(error);
       });
   });
+}
+
+export function deleteRecord(id, shouldReload = false) {
+  return new Promise((resolve, reject) => {
+    console.log(`Intentando eliminar la entrega con ID: ${id}`);
+    window.ZOHO.CRM.API.deleteRecord({
+      Entity: "Entregas",
+      RecordID: id,
+    })
+      .then((data) => {
+        console.log(`Respuesta de la API para la entrega ${id}:`, data);
+        if (
+          data &&
+          data.data &&
+          data.data[0] &&
+          data.data[0].status === "success"
+        ) {
+          if (shouldReload) {
+            window.location.reload();
+          }
+          console.log(`Entrega ${id} eliminada con éxito`);
+          resolve({ status: "success" });
+        } else {
+          console.log(`Error al eliminar la entrega ${id}:`, data);
+          resolve({
+            status: "error",
+            error: "Eliminación fallida",
+            details: data,
+          });
+        }
+      })
+      .catch((error) => {
+        console.error(`Error al eliminar la entrega ${id}:`, error);
+        resolve({ status: "error", error: error });
+      });
+  });
+}
+
+export async function deleteAllRecords(entregas) {
+  console.log(`Intentando eliminar ${entregas.length} entregas`);
+  const results = await Promise.all(
+    entregas.map((entrega) => deleteRecord(entrega.id, false))
+  );
+
+  const successCount = results.filter(
+    (result) => result.status === "success"
+  ).length;
+  const failedCount = results.length - successCount;
+
+  console.log(
+    `Resultados de eliminación: ${successCount} exitosas, ${failedCount} fallidas`
+  );
+  console.log("Resultados detallados:", results);
+
+  return {
+    message: `${successCount} de ${entregas.length} entregas han sido eliminadas. ${failedCount} fallaron.`,
+    results: results.map((result, index) => ({
+      id: entregas[index].id,
+      status: result.status,
+      error: result.error,
+    })),
+  };
 }

@@ -10,9 +10,36 @@ const PopupForm = ({
   onAddFormSet2,
   togglePopup,
   formSets,
+  records,
+  dark,
 }) => {
   const tag = datos && datos.Tag ? datos.Tag[0].name : null;
-  console.log("formsets", formSets);
+  const [commentEdited, setCommentEdited] = useState(false);
+  const [formData, setFormData] = useState({
+    Name: "",
+    Estado: "Pendiente",
+    Coordinacion_asociada: registerID,
+    Paginas_a_entregar: "",
+    Fecha_entrega_profesional: "",
+    Fecha_entrega_cliente: "",
+    Fecha_reagendada: "",
+    Comentario:
+      tag === "Para traducir"
+        ? "PARA TRADUCIR"
+        : tag === "Traducir"
+        ? "TRADUCCION"
+        : "",
+    Hora: "",
+    // Correcciones: "",
+    Urgente: false,
+    Entreg_adelantado: false,
+    Entrega_Gestor: "",
+    Ocultar_entrega_gestor: "",
+  });
+  const [latestDates, setLatestDates] = useState({
+    clientDate: null,
+    professionalDate: null,
+  });
 
   const getRecords = async () => {
     try {
@@ -22,7 +49,6 @@ const PopupForm = ({
         "Entregas_asociadas"
       );
       const registros = response.register || [];
-      console.log("Respuestar", registros);
 
       const validFormSets = registros.filter((item) => item.Name !== "CO");
       console.log(validFormSets);
@@ -32,10 +58,9 @@ const PopupForm = ({
       console.error(error);
     }
   };
-
   const getNextDeliveryNumber = async () => {
     const cantidadActual = await getRecords();
-    console.log(cantidadActual);
+    console.log("1", cantidadActual);
     let nextNumber = 1;
     const validFormSets = cantidadActual.filter((item) => item.Name !== "CO");
     console.log(validFormSets.length);
@@ -44,53 +69,7 @@ const PopupForm = ({
     }
     return nextNumber.toString();
   };
-  const [formData, setFormData] = useState({
-    Name: "",
-    Estado: "Pendiente",
-    Coordinacion_asociada: registerID,
-    Paginas_a_entregar: "",
-    Fecha_entrega_profesional: "",
-    Fecha_entrega_cliente: "",
-    Fecha_reagendada: "",
-    Comentario: "",
-    Hora: "",
-    // Correcciones: "",
-    Urgente: false,
-    Entreg_adelantado: false,
-    Entrega_Gestor: "",
-  });
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prevData) => ({
-      ...prevData,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-  useEffect(() => {
-    if (formData.Fecha_entrega_profesional) {
-      const nextWorkingDay = getNextWorkingDay(
-        formData.Fecha_entrega_profesional,
-        2
-      );
-      setFormData((prevData) => ({
-        ...prevData,
-        Fecha_entrega_cliente: nextWorkingDay,
-      }));
-    }
-  }, [formData.Fecha_entrega_profesional]);
-  useEffect(() => {
-    obtenerGestor();
-    getRecords();
-    const fetchNextDeliveryNumber = async () => {
-      const nextNumber = await getNextDeliveryNumber();
-      setFormData((prevData) => ({
-        ...prevData,
-        Name: nextNumber,
-      }));
-    };
 
-    fetchNextDeliveryNumber();
-  }, []);
   const obtenerGestor = async () => {
     const data = {
       arguments: JSON.stringify({
@@ -111,71 +90,23 @@ const PopupForm = ({
       console.error("Error executing function:", error);
     }
   };
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (
-      !formData.Fecha_entrega_cliente ||
-      !formData.Fecha_entrega_profesional
-    ) {
-      Swal.fire({
-        icon: "error",
-        title: "Campos obligatorios",
-        text: "Fecha de cliente y entrega profesional son obligatorios",
-      });
-      return;
+
+  useEffect(() => {
+    if (formData.Fecha_entrega_profesional) {
+      const nextWorkingDay = getNextWorkingDay(
+        formData.Fecha_entrega_profesional,
+        2
+      );
+      setFormData((prevData) => ({
+        ...prevData,
+        Fecha_entrega_cliente: nextWorkingDay,
+      }));
     }
-    onAddFormSet(formData);
+  }, [formData.Fecha_entrega_profesional]);
 
-    setFormData({
-      Name: "",
-      Estado: "Pendiente",
-      Coordinacion_asociada: registerID,
-      Paginas_a_entregar: "",
-      Fecha_entrega_profesional: "",
-      Fecha_entrega_cliente: "",
-      Fecha_reagendada: "",
-      Comentario: "",
-      Hora: "",
-      // Correcciones: "",
-      Urgente: false,
-      Entreg_adelantado: false,
-      Entrega_Gestor: "",
-    });
-
-    togglePopup(); // Cierra el popup
-  };
-  const handleSubmitWhithNew = async (e) => {
-    e.preventDefault();
-    getRecords();
-    if (
-      !formData.Fecha_entrega_cliente ||
-      !formData.Fecha_entrega_profesional
-    ) {
-      Swal.fire({
-        icon: "error",
-        title: "Campos obligatorios",
-        text: "Fecha de cliente y entrega profesional son obligatorios",
-      });
-      return;
-    }
-    onAddFormSet2(formData);
-
-    setFormData({
-      Name: "",
-      Estado: "Pendiente",
-      Coordinacion_asociada: registerID,
-      Paginas_a_entregar: "",
-      Fecha_entrega_profesional: "",
-      Fecha_entrega_cliente: "",
-      Fecha_reagendada: "",
-      Comentario: "",
-      Hora: "",
-      // Correcciones: "",
-      Urgente: false,
-      Entreg_adelantado: false,
-      Entrega_Gestor: "",
-    });
+  useEffect(() => {
     obtenerGestor();
+    getRecords();
     const fetchNextDeliveryNumber = async () => {
       const nextNumber = await getNextDeliveryNumber();
       setFormData((prevData) => ({
@@ -185,6 +116,193 @@ const PopupForm = ({
     };
 
     fetchNextDeliveryNumber();
+  }, []);
+
+  useEffect(() => {
+    if (records && records.length > 0) {
+      findLatestDates();
+    }
+  }, [records]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await obtenerGestor();
+    await getRecords();
+    if (
+      !formData.Fecha_entrega_cliente ||
+      !formData.Fecha_entrega_profesional ||
+      !formData.Paginas_a_entregar ||
+      !formData.Entrega_Gestor
+    ) {
+      Swal.fire({
+        icon: "error",
+        title: "Campos obligatorios",
+        text: "Fecha de cliente , entrega profesional , paginas y gestor son obligatorios",
+      });
+      return;
+    }
+    let finalCommentValue = formData.Comentario;
+    if (!commentEdited && finalCommentValue === "") {
+      if (tag === "Para traducir") {
+        finalCommentValue = "PARA TRADUCIR";
+      } else if (tag === "Traducir") {
+        finalCommentValue = "TRADUCCION";
+      }
+    }
+    // Lógica para determinar Estado_entrega_cliente
+    let Estado_entrega_cliente = "";
+    switch (formData.Estado) {
+      case "Entregada":
+        Estado_entrega_cliente = "Recibida";
+        break;
+      case "Correcciones":
+        Estado_entrega_cliente = "Pendiente";
+        break;
+      case "Retrasada":
+        // Deja el valor por defecto, que se asume como ""
+        break;
+      default:
+        Estado_entrega_cliente = formData.Estado;
+        break;
+    }
+
+    // Aquí verificamos si tag es "Traducir" para ajustar Ocultar_entrega_gestor
+    const shouldHideDeliveryManager = tag === "Traducir";
+
+    onAddFormSet({
+      ...formData,
+      Comentario: finalCommentValue,
+      Ocultar_entrega_gestor: shouldHideDeliveryManager, // Ajustamos el valor aquí
+      Estado_entrega_cliente: Estado_entrega_cliente, // Ajustamos el valor aquí
+    });
+
+    setFormData({
+      Name: "",
+      Estado: "Pendiente",
+      Coordinacion_asociada: registerID,
+      Paginas_a_entregar: "",
+      Fecha_entrega_profesional: "",
+      Fecha_entrega_cliente: "",
+      Fecha_reagendada: "",
+      Comentario: "",
+      Hora: "",
+      Urgente: false,
+      Entreg_adelantado: false,
+      Entrega_Gestor: "",
+      Ocultar_entrega_gestor: false, // Aseguramos que se resetee a false si es necesario
+    });
+
+    if (tag === "Traducir") {
+      console.log("si es");
+    }
+
+    const togglePopups = () => {
+      setCommentEdited(false);
+      togglePopup();
+      // ... otras acciones de cierre del popup ...
+    };
+
+    togglePopups();
+  };
+
+  const getInitialComment = (tag) => {
+    if (tag === "Para traducir") return "PARA TRADUCIR";
+    if (tag === "Traducir") return "TRADUCCION";
+    return "";
+  };
+
+  const handleSubmitWhithNew = async (e) => {
+    e.preventDefault();
+    await getRecords();
+
+    if (
+      !formData.Fecha_entrega_cliente ||
+      !formData.Fecha_entrega_profesional ||
+      !formData.Paginas_a_entregar ||
+      !formData.Entrega_Gestor
+    ) {
+      Swal.fire({
+        icon: "error",
+        title: "Campos obligatorios",
+        text: "Fecha de cliente , entrega profesional , paginas y gestor son obligatorios",
+      });
+      return;
+    }
+    let finalCommentValue = formData.Comentario;
+    if (!commentEdited && finalCommentValue === "") {
+      finalCommentValue = getInitialComment(tag);
+    }
+    // Lógica para determinar Estado_entrega_cliente
+    let Estado_entrega_cliente = "";
+    switch (formData.Estado) {
+      case "Entregada":
+        Estado_entrega_cliente = "Recibida";
+        break;
+      case "Correcciones":
+        Estado_entrega_cliente = "Pendiente";
+        break;
+      case "Retrasada":
+        Estado_entrega_cliente = Estado_entrega_cliente || "Pendiente";
+        break;
+      default:
+        Estado_entrega_cliente = formData.Estado;
+        break;
+    }
+    // Verificar y ajustar Estado_entrega_cliente si es -None-
+    if (Estado_entrega_cliente === "-None-") {
+      Estado_entrega_cliente = "Pendiente";
+    }
+    // Determinamos si debemos ocultar la entrega del gestor
+    const shouldHideDeliveryManager = tag === "Traducir";
+
+    onAddFormSet2({
+      ...formData,
+      Comentario: finalCommentValue,
+      Ocultar_entrega_gestor: shouldHideDeliveryManager,
+      Estado_entrega_cliente: Estado_entrega_cliente, // Ajustamos el valor aquí
+    });
+
+    setFormData({
+      Name: "",
+      Estado: "Pendiente",
+      Coordinacion_asociada: registerID,
+      Paginas_a_entregar: "",
+      Fecha_entrega_profesional: "",
+      Fecha_entrega_cliente: "",
+      Fecha_reagendada: "",
+      Comentario: getInitialComment(tag), // Usar la función auxiliar aquí
+      Hora: "",
+      Urgente: false,
+      Entreg_adelantado: false,
+      Entrega_Gestor: "",
+      Ocultar_entrega_gestor: false, // Aseguramos que se resetee a false si es necesario
+    });
+    setCommentEdited(false);
+    const fetchNextDeliveryNumber = async () => {
+      const nextNumber = await getNextDeliveryNumber();
+      setFormData((prevData) => ({
+        ...prevData,
+        Name: nextNumber,
+      }));
+    };
+    setCommentEdited(false);
+    setTimeout(() => {
+      obtenerGestor();
+    }, 2000);
+    fetchNextDeliveryNumber();
+  };
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+
+    if (name === "Comentario") {
+      setCommentEdited(true);
+    }
+
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
   const getNextWorkingDay = (startDate, numberOfDays) => {
     let currentDate = new Date(startDate);
@@ -202,54 +320,125 @@ const PopupForm = ({
     return currentDate.toISOString().split("T")[0]; // Formatea la fecha en YYYY-MM-DD
   };
 
-  const closeAndReload = () => {};
+  function formatDate(dateString) {
+    if (dateString) {
+      // Check if dateString is not null
+      const [year, month, day] = dateString.split("-");
+      return `${parseInt(day)}/${parseInt(month)}/${year}`;
+    } else {
+      return ""; // Or return any default value you prefer
+    }
+  }
+  const findLatestDates = () => {
+    let latestClientDate = null;
+    let latestProfessionalDate = null;
+
+    records.forEach((record) => {
+      if (record.Fecha_entrega_cliente) {
+        const clientDate = new Date(record.Fecha_entrega_cliente);
+        if (!latestClientDate || clientDate > latestClientDate) {
+          latestClientDate = clientDate;
+        }
+      }
+      if (record.Fecha_entrega_profesional) {
+        const professionalDate = new Date(record.Fecha_entrega_profesional);
+        if (
+          !latestProfessionalDate ||
+          professionalDate > latestProfessionalDate
+        ) {
+          latestProfessionalDate = professionalDate;
+        }
+      }
+    });
+
+    setLatestDates({
+      clientDate: latestClientDate
+        ? latestClientDate.toISOString().split("T")[0]
+        : null,
+      professionalDate: latestProfessionalDate
+        ? latestProfessionalDate.toISOString().split("T")[0]
+        : null,
+    });
+  };
+  if (latestDates && latestDates.clientDate) {
+    // Check if latestDates exists and clientDate has a value
+    const formattedClientDate = formatDate(latestDates.clientDate);
+    console.log(formattedClientDate); // Replace with your desired action
+  } else {
+    console.log(
+      "latestDates.clientDate is null or latestDates does not exist."
+    );
+  }
 
   return (
-    <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center bg-gray-800 bg-opacity-50 z-50">
-      <div className="bg-white p-8 rounded-lg shadow-lg w-[30%] ">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold mb-4"> Nueva Entrada</h2>
+    <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center bg-gray-950  bg-opacity-50 backdrop-blur-sm z-50 ">
+      <div
+        className={`${
+          dark ? "bg-[#2f374c]" : "bg-[#f0f1f1]"
+        } p-6 rounded-lg  w-[40%] h-[90%] shadow-[0px_0px_30px_rgba(234,234,234,0.5)] `}
+      >
+        <div className="flex items-center justify-between ">
+          <h2
+            className={`text-xl ${
+              dark ? "text-[#ff862e]" : "text-[#2e27e9]"
+            }  font-semibold mb-4`}
+          >
+            Nueva Entrada
+          </h2>
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4 flex items-center justify-between ">
-            <label
-              htmlFor="Name"
-              className="block text-sm font-medium text-gray-700 mr-4"
-            >
-              Nº Entrega Gestor
-            </label>
-            <input
-              type="text"
-              id="Entrega_Gestor"
-              name="Entrega_Gestor"
-              value={formData.Entrega_Gestor}
-              onChange={handleChange}
-              className="block border-2 w-[125px] text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          </div>
-          <div className="mb-4 flex items-center justify-between ">
-            <label
-              htmlFor="Paginas_a_entregar"
-              className="block text-sm font-medium text-gray-700 mr-4"
-            >
-              Nº de entrega
-            </label>
-            <input
-              type="text"
-              id="Name"
-              name="Name"
-              value={formData.Name}
-              onChange={handleChange}
-              className="block border-2 w-[125px] text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          </div>
-
-          <div className="flex w-[100%] justify-between ">
-            <div className="w-[100%]  ">
+        <form onSubmit={handleSubmit} className=" h-[90%] ">
+          <div className="flex w-[100%] h-full ">
+            <div className="w-[100%] h-full flex flex-col justify-between  ">
+              <div className="mb-4 flex items-center justify-between  ">
+                <label
+                  htmlFor="Paginas_a_entregar"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
+                >
+                  Nº de entrega
+                </label>
+                <input
+                  type="text"
+                  id="Name"
+                  name="Name"
+                  value={formData.Name}
+                  onChange={handleChange}
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
+                />
+              </div>
+              <div className="mb-4 flex items-center justify-between ">
+                <label
+                  htmlFor="Name"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
+                >
+                  Nº Entrega Gestor
+                </label>
+                <input
+                  type="text"
+                  id="Entrega_Gestor"
+                  name="Entrega_Gestor"
+                  value={formData.Entrega_Gestor}
+                  onChange={handleChange}
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
+                />
+              </div>
               <div className="mb-4 w-full flex items-center justify-between">
                 <label
                   htmlFor="Estado"
-                  className="block text-sm font-medium text-gray-700"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
                 >
                   Estado
                 </label>
@@ -259,7 +448,11 @@ const PopupForm = ({
                   name="Estado"
                   value={formData.Estado}
                   onChange={handleChange}
-                  className="block  w-[125px]  border-2 px-2 border-gray-500 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ml-2"
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
                 >
                   <option value="None">-None-</option>
                   <option value="Pendiente">Pendiente</option>
@@ -267,14 +460,16 @@ const PopupForm = ({
                   <option value="Paralizada">Paralizada</option>
                   <option value="Retrasada">Retrasada</option>
                   {/* <option value="Correcciones">Correcciones</option> */}
-                  <option value="Entrega asignada">Entrega asignada</option>
+                  {/* <option value="Entrega asignada">Entrega asignada</option> */}
                   <option value="Caida">Caida</option>
                 </select>
               </div>
               <div className="mb-4 flex items-center justify-between">
                 <label
                   htmlFor="Paginas_a_entregar"
-                  className="block text-sm font-medium text-gray-700"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
                 >
                   Páginas a entregar
                 </label>
@@ -284,13 +479,19 @@ const PopupForm = ({
                   name="Paginas_a_entregar"
                   value={formData.Paginas_a_entregar}
                   onChange={handleChange}
-                  className="block border-2 w-[125px] text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
                 />
               </div>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-2 flex items-center justify-between">
                 <label
                   htmlFor="Fecha_entrega_profesional"
-                  className="block text-sm font-medium text-gray-700 mr-4"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
                 >
                   Fecha entrega profesional
                 </label>
@@ -300,13 +501,25 @@ const PopupForm = ({
                   name="Fecha_entrega_profesional"
                   value={formData.Fecha_entrega_profesional}
                   onChange={handleChange}
-                  className="block border-2 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
                 />
               </div>
-              <div className="mb-4 flex items-center justify-between">
+              <p className="text-sm text-[#f73463] font-semibold mb-2">
+                {latestDates.professionalDate
+                  ? formatDate(latestDates.professionalDate) +
+                    " es la fecha anteriormente agendada para el profesional en este proyecto"
+                  : "No hay fechas anteriores"}
+              </p>
+              <div className="mb-2 flex items-center justify-between">
                 <label
                   htmlFor="Fecha_entrega_cliente"
-                  className="block text-sm font-medium text-gray-700 mr-4"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
                 >
                   Fecha entrega cliente
                 </label>
@@ -316,13 +529,25 @@ const PopupForm = ({
                   name="Fecha_entrega_cliente"
                   value={formData.Fecha_entrega_cliente}
                   onChange={handleChange}
-                  className="block border-2 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
                 />
               </div>
+              <p className="text-sm text-[#f73463] font-semibold mb-2">
+                {latestDates.clientDate
+                  ? formatDate(latestDates.clientDate) +
+                    " es la fecha anteriormente agendada para el cliente en este proyecto"
+                  : "No hay fechas anteriores"}
+              </p>
               <div className="mb-4 flex items-center justify-between">
                 <label
                   htmlFor="Hora"
-                  className="block text-sm font-medium text-gray-700"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
                 >
                   Hora profesional
                 </label>
@@ -332,14 +557,20 @@ const PopupForm = ({
                   name="Hora"
                   value={formData.Hora}
                   onChange={handleChange}
-                  className="block border-2 w-[125px] text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
                 />
               </div>
               <div className="flex justify-between  mt-2">
                 <div className="mb-4 flex items-center">
                   <label
                     htmlFor="Urgente"
-                    className="block text-sm font-medium text-gray-700"
+                    className={`block text-md 4xl:text-lg font-medium ${
+                      dark ? "text-white" : "text-black"
+                    }  mr-4`}
                   >
                     Urgente?
                   </label>
@@ -357,7 +588,7 @@ const PopupForm = ({
                 {/* <div className="mb-4 flex items-center">
                   <label
                     htmlFor="Entreg_adelantado"
-                    className="block text-sm font-medium text-gray-700"
+                    className="block text-md 4xl:text-lg font-medium text-white"
                   >
                     Entregó adelantado
                   </label>
@@ -376,74 +607,42 @@ const PopupForm = ({
               <div className="mb-4">
                 <label
                   htmlFor="Comentario"
-                  className="block text-sm font-medium text-gray-700"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
                 >
                   Comentario
                 </label>
                 <textarea
                   id="Comentario"
                   name="Comentario"
-                  value={
-                    formData.Comentario
-                      ? formData.Comentario
-                      : tag === "Para traducir"
-                      ? "PARA TRADUCIR"
-                      : tag === "Traducir"
-                      ? "TRADUCCION"
-                      : ""
-                  }
+                  value={formData.Comentario}
                   onChange={handleChange}
-                  className="mt-1 block w-full border-2 pl-2 pt-1 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className={`mt-1 block w-full border-2 pl-2 pt-1 border-none  rounded-md shadow-sm  ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } text-white sm:text-md 4xl:text-lg`}
                 ></textarea>
               </div>
               <div className="flex justify-end gap-4">
                 <button
                   type="submit"
-                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-md 4xl:text-lg font-medium rounded-md text-white bg-[#43d1a7] hover:bg-[#37c298] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Guardar
                 </button>
                 <div
                   onClick={handleSubmitWhithNew}
-                  className="cursor-pointer inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="cursor-pointer inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-md 4xl:text-lg font-medium rounded-md text-white bg-[#43d1a7] hover:bg-[#37c298] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Guardar y nuevo
                 </div>
                 <button
-                  onClick={() => window.location.reload()}
-                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-500 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  onClick={() => togglePopup()}
+                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-md 4xl:text-lg font-medium rounded-md text-white bg-[#f74363] hover:bg-[#db3a58] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Cerrar
                 </button>
               </div>
-            </div>
-
-            <div>
-              {/* <div className="mb-4 flex items-center">
-                <label
-                  htmlFor="Correcciones"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Correcciones
-                </label>
-
-                <select
-                  id="Correcciones"
-                  name="Correcciones"
-                  value={formData.Correcciones}
-                  onChange={handleChange}
-                  className="block border-2 ml-4 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                >
-                  <option value="None">-None-</option>
-                  <option value="NA">NA</option>
-                  <option value="Relacionadas con el profesional">
-                    Relacionadas con el profesional
-                  </option>
-                  <option value="Relacionadas con cambios pedidos por el cliente">
-                    Relacionadas con cambios pedidos por el cliente
-                  </option>
-                </select>
-              </div> */}
             </div>
           </div>
         </form>
