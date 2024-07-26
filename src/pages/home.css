@@ -2,30 +2,30 @@
 /* Estilos base para ambos tamaños de pantalla */
 
 .card {
-  width: 18vw;
-  height: 41vh;
+  width: 20vw;
+  height: 55vh;
   display: flex;
+  /* background-color: #2f374c; */
   flex-direction: column;
   justify-content: space-between;
-  border: 2px solid #d4d4d4;
+  margin-right: 10px;
+  margin-bottom: 10px;
   padding: 4px;
   border-radius: 8px;
-  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+
   padding: 20px;
 }
-.sombra div {
+/* .sombra div {
   width: 100%;
   border-right: 1px solid black;
   display: flex;
   justify-content: center;
-}
+} */
 .modif {
-  box-shadow: 0 4px 15px 0 rgba(255, 0, 0, 0.5);
-  border: 1px solid red;
+  box-shadow: 0px 0px 30px rgba(255, 0, 0, 0.826);
+  border: 3px solid #f73463;
 }
-.cont {
-  padding-left: 60px;
-}
+
 /* En tu archivo CSS */
 /* @keyframes pulse {
   0% {
@@ -56,11 +56,26 @@
 }
 @media screen and (max-width: 1600px) {
   .card {
-    width: 23vw;
-    height: 39vh;
+    width: 25vw;
+    height: 65vh;
     padding: 10px;
   }
   .cont {
     padding-left: 0;
   }
+}
+.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px; /* adjust max-width as needed */
+}
+.tool {
+  width: 20px !important;
+}
+.btn-raro {
+  background-color: #f73464 !important;
+}
+.btn-raro:hover {
+  background-color: #f7144d !important;
 }

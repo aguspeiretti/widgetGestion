@@ -7,6 +7,7 @@ import {
   insertRecord,
   insertRecord2,
   updateRecord,
+  deleteAllRecords,
 } from "../functions/apiFunctions";
 import PopupForm from "../components/PopupForm";
 import Swal from "sweetalert2";
@@ -15,42 +16,60 @@ import PopupCoForm from "../components/PopupCoForm";
 import { BsFilterSquare } from "react-icons/bs";
 import useRecordStore from "../context/recodStore";
 import DropCustom from "../components/DropCustom";
+import PopCalendario from "../components/PopCalendario";
+import { FaRegClock } from "react-icons/fa";
+import { MdCheck } from "react-icons/md";
+import { IoCloseCircleOutline } from "react-icons/io5";
+import Tooltip from "../components/Tooltip";
+import { BsMoonStars } from "react-icons/bs";
+import { BsSunFill } from "react-icons/bs";
 
 const Home = ({ datos, registerID }) => {
-  const [style, setStyle] = useState("card");
   const [filter, setFilter] = useState("Todas");
   const [eleccion, setEleccion] = useState(false);
   const [formSets, setFormSets] = useState([]);
   const [showPopup, setShowPopup] = useState(false);
   const [showPopupCo, setShowPopupCo] = useState(false);
-  const [shouldGetRecords, setShouldGetRecords] = useState(true);
   const [modifiedIndexes, setModifiedIndexes] = useState([]);
   const entregasNumerdas = formSets.filter((entry) => entry.Name !== "CO");
   const entregaCorrecciones = formSets.filter((entry) => entry.Name === "CO");
-
-  const { getRelatedRecord, records } = useRecordStore();
-
   const tag = datos && datos.Tag ? datos.Tag[0].name : null;
+  const { getRelatedRecord, records } = useRecordStore();
+  const [dark, setDark] = useState(() => {
+    const savedDarkMode = localStorage.getItem("darkMode");
+    return savedDarkMode ? JSON.parse(savedDarkMode) : false;
+  });
 
-  const filtredEntys =
-    filter === "Entrega Numerada"
-      ? entregasNumerdas.slice() // Realiza una copia del array
-      : filter === "Entrega Correcciones"
-      ? entregaCorrecciones.slice() // Realiza una copia del array
-      : formSets.slice(); // Realiza una copia del array
+  // const filtredEntys =
+  //   filter === "Entrega Numerada"
+  //     ? entregasNumerdas.slice() // Realiza una copia del array
+  //     : filter === "Entrega Correcciones"
+  //     ? entregaCorrecciones.slice() // Realiza una copia del array
+  //     : formSets.slice(); // Realiza una copia del array
+  // console.log("filtred", filtredEntys);
+  const filterMap = {
+    "Entrega Numerada": entregasNumerdas,
+    "Entrega Correcciones": entregaCorrecciones,
+    default: formSets,
+  };
+  const filtredEntys = [...(filterMap[filter] || filterMap.default)];
 
   useEffect(() => {
     getRelatedRecord(registerID);
     console.log("zustand", records);
+    cargarRegistros();
   }, []);
 
   useEffect(() => {
-    if (shouldGetRecords) {
-      getRecords();
-      setShouldGetRecords(false);
-    }
-  }, [shouldGetRecords]);
+    cargarRegistros();
+  }, [registerID]);
 
+  useEffect(() => {
+    getRecords();
+  }, [records, tag]);
+  const cargarRegistros = async () => {
+    await getRelatedRecord(registerID);
+  };
   const getRecords = async () => {
     try {
       const response = await getRelatedRecords(
@@ -81,40 +100,21 @@ const Home = ({ datos, registerID }) => {
     setEleccion(false);
   };
   const handleRecord = (formData) => {
-    // const { Fecha_entrega_cliente, Fecha_entrega_profesional } = formData;
-
-    // if (!Fecha_entrega_cliente || !Fecha_entrega_profesional) {
-    //   Swal.fire({
-    //     icon: "error",
-    //     title: "Campos obligatorios",
-    //     text: "Fecha de cliente y entrega profesional son obligatorios",
-    //   });
-    //   return;
-    // }
-
     const newRecord = { ...formData };
-    insertRecord(newRecord)
+    insertRecord(newRecord);
+    cargarRegistros()
       .then((result) => {
         setFormSets((prevFormSets) => [...prevFormSets, newRecord]);
+        // togglePopup();
       })
       .catch((error) => {
         console.error("Error al agregar el registro:", error);
       });
   };
   const handleRecord2 = (formData) => {
-    // const { Fecha_entrega_cliente, Fecha_entrega_profesional } = formData;
-
-    // if (!Fecha_entrega_cliente || !Fecha_entrega_profesional) {
-    //   Swal.fire({
-    //     icon: "error",
-    //     title: "Campos obligatorios",
-    //     text: "Fecha de cliente y entrega profesional son obligatorios",
-    //   });
-    //   return;
-    // }
-
     const newRecord = { ...formData };
-    insertRecord2(newRecord)
+    insertRecord2(newRecord);
+    cargarRegistros()
       .then((result) => {
         setFormSets((prevFormSets) => [...prevFormSets, newRecord]);
       })
@@ -125,43 +125,19 @@ const Home = ({ datos, registerID }) => {
   const handleFieldChange = (index, fieldName, value) => {
     setFormSets((prevFormSets) => {
       const newFormSets = [...prevFormSets];
-      newFormSets[index][fieldName] = value;
+      newFormSets[index] = {
+        ...newFormSets[index],
+        [fieldName]: value,
+      };
 
-      // Añadir índice a modifiedIndexes si no está presente
       if (!modifiedIndexes.includes(index)) {
         setModifiedIndexes([...modifiedIndexes, index]);
       }
 
-      if (fieldName === "Fecha_entrega_profesional") {
-        // Lógica adicional para manejar las fechas
-        const fechaProfesional = new Date(value);
-        // Calcula 2 días hábiles después de Fecha_entrega_profesional
-        const fechaEntregaCliente = calculateNextBusinessDay(
-          fechaProfesional,
-          2
-        );
-        newFormSets[index]["Fecha_entrega_cliente"] = fechaEntregaCliente
-          .toISOString()
-          .split("T")[0];
+      // Lógica adicional para fechas si es necesario
 
-        // Limpia Fecha_reagendada
-        newFormSets[index]["Fecha_reagendada"] = "";
-      } else if (fieldName === "Fecha_entrega_cliente") {
-        // Limpia Fecha_reagendada
-        newFormSets[index]["Fecha_reagendada"] = "";
-      }
       return newFormSets;
     });
-  };
-  const calculateNextBusinessDay = (date, days) => {
-    let count = 0;
-    while (count < days) {
-      date.setDate(date.getDate() + 1);
-      if (date.getDay() !== 0 && date.getDay() !== 6) {
-        count++;
-      }
-    }
-    return date;
   };
   const delRecord = async (id) => {
     const result = await Swal.fire({
@@ -188,38 +164,159 @@ const Home = ({ datos, registerID }) => {
       Swal.fire("Cancelado", "El registro no se ha eliminado", "info");
     }
   };
-  const updateRecordInCRM = (index) => {
-    const recordData = formSets[index];
-    console.log(recordData);
-    updateRecord(recordData)
-      .then((result) => {
-        setFormSets((prevFormSets) => {
-          prevFormSets[index] = result;
-          return prevFormSets;
+  const delAllRecords = async () => {
+    const result = await Swal.fire({
+      title: "¿Estás seguro?",
+      text: "Esta acción eliminará todas las entregas y no se puede deshacer",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Sí, eliminar todas",
+      cancelButtonText: "Cancelar",
+    });
+
+    if (result.isConfirmed) {
+      try {
+        Swal.fire({
+          title: "Eliminando entregas",
+          text: "Por favor espere...",
+          allowOutsideClick: false,
+          showConfirmButton: false,
+          willOpen: () => {
+            Swal.showLoading();
+          },
         });
-      })
-      .catch((error) => {
-        console.error("Error updating record", error);
-      });
+
+        const deleteResult = await deleteAllRecords(formSets);
+
+        let successCount = deleteResult.results.filter(
+          (result) => result.status === "success"
+        ).length;
+        let failedCount = deleteResult.results.length - successCount;
+
+        // Actualizamos el estado con las entregas restantes
+        let remainingEntregas = formSets.filter(
+          (entrega) =>
+            !deleteResult.results.find(
+              (result) =>
+                result.id === entrega.id && result.status === "success"
+            )
+        );
+
+        setFormSets(remainingEntregas);
+
+        if (failedCount > 0) {
+          const retryResult = await Swal.fire({
+            title: "Algunas entregas no se pudieron eliminar",
+            html: `
+              <p>${successCount} de ${formSets.length} entregas han sido eliminadas. ${failedCount} fallaron.</p>
+              <p>¿Desea intentar eliminar las ${failedCount} entregas restantes?</p>
+            `,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Sí, reintentar",
+            cancelButtonText: "No, dejar como está",
+          });
+
+          if (retryResult.isConfirmed) {
+            return delAllRecords(); // Llamada recursiva para reintentar
+          }
+        }
+
+        Swal.fire({
+          title: "Proceso completado",
+          html: `
+            <p>${successCount} de ${
+            formSets.length
+          } entregas han sido eliminadas.</p>
+            ${
+              failedCount > 0
+                ? `<p>${failedCount} entregas no pudieron ser eliminadas. Por favor, revise y inténtelo de nuevo más tarde si es necesario.</p>`
+                : ""
+            }
+          `,
+          icon: failedCount > 0 ? "warning" : "success",
+        }).then(() => {
+          window.location.reload();
+        });
+      } catch (error) {
+        console.error("Error al eliminar las entregas:", error);
+        Swal.fire(
+          "Error",
+          "Hubo un problema al eliminar las entregas",
+          "error"
+        );
+      }
+    } else {
+      Swal.fire("Cancelado", "Las entregas no se han eliminado", "info");
+    }
+  };
+  const updateRecordInCRM = async (index, recordData) => {
+    const fieldsToUpdate = [
+      "id",
+      "Name",
+      "Entrega_Gestor",
+      "Estado",
+      "Paginas_a_entregar",
+      "Fecha_entrega_profesional",
+      "Fecha_entrega_cliente",
+      "Fecha_reagendada",
+      "Hora",
+      "Correcciones",
+      "Comentario",
+      "Urgente",
+    ];
+
+    const updatedData = {};
+    fieldsToUpdate.forEach((field) => {
+      if (recordData.hasOwnProperty(field)) {
+        updatedData[field] = recordData[field];
+      }
+    });
+
+    console.log("Datos a actualizar:", updatedData);
+
+    try {
+      const result = await updateRecord(updatedData);
+      console.log("Resultado de la actualización:", result);
+      // Asumiendo que result.data contiene los datos actualizados
+      return result.data;
+    } catch (error) {
+      console.error("Error updating record", error);
+      throw error;
+    }
   };
   const saveAllChanges = async () => {
     try {
-      // Crea un array de promesas para todas las actualizaciones
       const updatePromises = formSets.map((recordData, index) =>
         updateRecordInCRM(index, recordData)
       );
 
-      await Promise.all(updatePromises);
+      const results = await Promise.all(updatePromises);
+
+      // Actualizar el estado con los resultados
+      setFormSets((prevFormSets) => {
+        const newFormSets = [...prevFormSets];
+        results.forEach((result, index) => {
+          newFormSets[index] = { ...newFormSets[index], ...result };
+        });
+
+        return newFormSets;
+      });
 
       Swal.fire({
         icon: "success",
-        title: "Cambios guardados ",
+        title: "Cambios guardados",
         showConfirmButton: false,
         timer: 2000,
       });
+      console.log(
+        "ACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1"
+      );
+      window.ZOHO.CRM.UI.Popup.closeReload().then(function (data) {
+        console.log(data);
+      });
     } catch (error) {
       console.error("Error al guardar los cambios:", error);
-
       Swal.fire({
         icon: "error",
         title: "Error al guardar los cambios",
@@ -236,176 +333,324 @@ const Home = ({ datos, registerID }) => {
     // Puedes ajustar el formato según tus preferencias
     return `${day}/${month}/${year}`;
   }
-  const cerrarWhidget = () => {
-    window.ZOHO.CRM.UI.Popup.closeReload().then(function (data) {
+  const guardarYavanzar = async () => {
+    try {
+      // Crea un array de promesas para todas las actualizaciones
+      const updatePromises = formSets.map((recordData, index) =>
+        updateRecordInCRM(index, recordData)
+      );
+      await Promise.all(updatePromises);
+
+      Swal.fire({
+        icon: "success",
+        title: "Cambios guardados ",
+        showConfirmButton: false,
+        timer: 2000,
+      });
+      console.log(
+        "ACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2"
+      );
+      window.ZOHO.CRM.BLUEPRINT.proceed();
+    } catch (error) {
+      console.error("Error al guardar los cambios:", error);
+
+      Swal.fire({
+        icon: "error",
+        title: "Error al guardar los cambios",
+        text: "Por favor, inténtalo de nuevo más tarde",
+      });
+    }
+  };
+  const close = () => {
+    if (hasUnsavedChanges()) {
+      Swal.fire({
+        title: "¿Estás seguro?",
+        text: "Hay cambios sin guardar. ¿Deseas cerrar de todos modos?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Sí, cerrar",
+        cancelButtonText: "Cancelar",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          closeWidget();
+        }
+      });
+    } else {
+      closeWidget();
+    }
+  };
+  const closeWidget = () => {
+    window.ZOHO.CRM.UI.Popup.close().then(function (data) {
       console.log(data);
     });
+  };
+  function truncateText(text, maxLength) {
+    if (text.length > maxLength) {
+      return text.slice(0, maxLength) + "...";
+    }
+    return text;
+  }
+  const handleDarkMode = (prop) => {
+    setDark(prop);
+    localStorage.setItem("darkMode", JSON.stringify(prop));
+  };
+  const hasUnsavedChanges = () => {
+    return modifiedIndexes.length > 0;
   };
 
   return (
     <div className="w-screen h-screen font-mundo flex flex-col ">
-      <div className="w-full h-[80px] bg-violet-500 ">
+      <div className="w-full ">
         {datos && datos.Name ? (
           <>
-            <div className="flex h-[40px] justify-between items-center pr-10 pl-5 ">
+            <div
+              className={`flex h-[40px] ${
+                dark ? "bg-[#222631]" : "bg-[#f0f0f8]"
+              } justify-between items-center pr-10 pl-5`}
+            >
               <div className="flex h-[125%] gap-8 text-xs items-center ">
-                <p className="text-xl  text-white drop-shadow-xl  ">
+                <p
+                  className={`text-xl font-bold ${
+                    dark ? "text-white" : "text-zinc-800"
+                  }  drop-shadow-xl`}
+                >
                   {datos.Name}
                 </p>
+                <PopCalendario
+                  dark={dark}
+                  datos={datos}
+                  registerID={registerID}
+                />
               </div>
               <div className=" h-[50px] flex gap-4  items-center justify-center ">
                 <button
-                  className="w-24 h-8 border-2 text-xs py-1 px-2 rounded-md border-white text-white font-semibold hover:bg-white hover:text-violet-500"
+                  className="flex items-center gap-2 w-28 h-8 border-2 text-xs py-1 px-2 rounded-md bg-[#f73463] border-none text-white font-semibold hover:bg-red-600 hover:text-white"
+                  onClick={close}
+                >
+                  <IoCloseCircleOutline size={20} />
+                  Cancelar
+                </button>
+                <button
+                  className={`flex items-center gap-2 border-none h-8 border-2 text-xs py-1 px-2 rounded-md ${
+                    dark === true ? "bg-[#ff862e]" : "bg-[#4c41ec]"
+                  }  text-white font-semibold hover:bg-violet-600 hover:text-white`}
                   onClick={saveAllChanges}
                 >
-                  Guardar todo
+                  <FaRegClock size={14} />
+                  Guardar y cerrar
                 </button>
+
                 <button
-                  className="w-24 h-8 border-2 text-xs py-1 px-2 rounded-md border-white text-white font-semibold hover:bg-white hover:text-violet-500"
-                  onClick={() => setEleccion(!eleccion)}
+                  className="flex items-center gap-2  h-8 border-2 text-xs py-1 px-2 rounded-md bg-[#43d1a7] border-none text-white font-semibold hover:bg-green-600 hover:text-white"
+                  onClick={() => guardarYavanzar()}
                 >
-                  Nuevo +
+                  <MdCheck size={16} />
+                  Guardar y avanzar
                 </button>
-                <button
-                  className="w-24 h-8 border-2 text-xs py-1 px-2 rounded-md border-white text-white font-semibold hover:bg-white hover:text-violet-500"
-                  onClick={() => cerrarWhidget()}
-                >
-                  Cerrar
-                </button>
-                {eleccion ? (
-                  <Eleccion
-                    togglePopup={togglePopup}
-                    togglePopupCo={togglePopupCo}
-                  />
-                ) : null}
               </div>
             </div>
-            <div className=" sombra flex  h-[40px] bg-violet-50 justify-between items-center pr-6 pl-2 shadow-2xl ">
-              <div className="flex text-center item-center divider ">
-                <p className="text-black  text-[12px] font-semibold ">
+            <div
+              className={` segunda-barra flex  h-[40px] ${
+                dark ? "bg-[#2f374c]" : "bg-[#e5e5e6]"
+              } ${
+                dark ? "text-[#ffb22e]" : "text-[#4c41ec]"
+              }  justify-start items-center pr-6 pl-2 shadow-2xl relative `}
+            >
+              <div className="flex w-[18%] text-center item-center  ">
+                <p
+                  className={`${
+                    dark ? "text-[#dddee0]" : "text-zinc-800"
+                  }  text-[14px] font-extrabold mr-2 `}
+                >
                   Fecha final de entrega:
                 </p>
-                <p className="font-semibold  text-[12px] ml-1 ">
+                <p className="font-semibold  text-[14px] mr-6 ">
                   {datos.Fecha_Final_de_Entrega
                     ? formatDate(datos.Fecha_Final_de_Entrega)
                     : "No Tiene"}
                 </p>
               </div>
-              <div className="flex text-center">
-                <p className="text-black  text-[12px] font-semibold ">
-                  Tema del proyecto:
-                </p>
-                <p className="font-semibold  text-[12px] mr-1">
-                  {datos.Tema_del_Proyecto
-                    ? formatDate(datos.Tema_del_Proyecto)
-                    : "No Tiene"}
-                </p>
-              </div>
-              <div className="flex text-center">
-                <p className="text-black  text-[12px] font-semibold ">
-                  Numero de paginas:
-                </p>
-                <p className="font-semibold  text-[12px] ml-1">
-                  {datos.Numero_de_Paginas
-                    ? datos.Numero_de_Paginas
-                    : "No Tiene"}
-                </p>
-              </div>
-              <div className="flex text-center">
-                <p className="text-black  text-[12px] font-semibold ">
-                  Cuantas paginas son nuevas:
-                </p>
-                <p className="font-semibold  text-[12px] ml-1">
-                  {datos.Cuantas_pagina_son_nuevas
-                    ? datos.Cuantas_pagina_son_nuevas
-                    : "No Tiene"}
-                </p>
-              </div>
-              <div className="flex text-center">
-                <p className="text-black  text-[12px] font-semibold ">
-                  Cantidad de páginas correcciones:
-                </p>
-                <p className="font-semibold  text-[12px] ml-1">
-                  {datos.Cuantas_paginas_son_de_correcciones
-                    ? datos.Cuantas_paginas_son_de_correcciones
-                    : "No Tiene"}
-                </p>
-              </div>
-              <div className="flex text-center">
-                <p className="text-black  text-[12px] font-semibold ">
-                  Pagina primera entrega:
-                </p>
-                <p className="font-semibold  text-[12px] ml-1">
-                  {datos.Pagina_Primera_Entrega
-                    ? datos.Pagina_Primera_Entrega
-                    : "No Tiene"}
-                </p>
-              </div>
-              <div className="flex text-center ">
-                <p className="text-black  text-[12px] font-semibold ">
+              <div className="flex w-[41%] text-center items-center ">
+                <p
+                  className={`${
+                    dark ? "text-[#dddee0]" : "text-zinc-800"
+                  }  text-[14px] font-extrabold `}
+                >
                   Fechas especificas:
                 </p>
-                <p className="font-semibold  text-[12px] ml-1 truncate">
-                  {datos.Cu_les_son_las_fechas_espec_ficas ? (
-                    <p className="">
-                      ${datos.Cu_les_son_las_fechas_espec_ficas}$
-                    </p>
-                  ) : (
-                    "No Tiene"
-                  )}
+                <p className="text-[14px] ml-2 font-semibold mr-2 ">
+                  {datos && datos.Cu_les_son_las_fechas_espec_ficas
+                    ? truncateText(datos.Cu_les_son_las_fechas_espec_ficas, 60)
+                    : "no tiene"}
                 </p>
+                <Tooltip
+                  title={datos && datos.Cu_les_son_las_fechas_espec_ficas}
+                />
+              </div>
+              <div className="flex w-[41%] text-center items-center">
+                <p
+                  className={`${
+                    dark ? "text-[#dddee0]" : "text-zinc-800"
+                  }  text-[14px] font-extrabold `}
+                >
+                  Tema del proyecto:
+                </p>
+                <p className="text-[14px]  ml-2 font-semibold mr-2 ">
+                  {datos.Tema_del_Proyecto
+                    ? truncateText(datos.Tema_del_Proyecto, 90)
+                    : "no tiene"}
+                </p>
+                <Tooltip title={datos.Tema_del_Proyecto} />
               </div>
             </div>
           </>
         ) : null}
       </div>
-      <div className="w-[125%)]  flex-col  h-[125%]   bg-mundoJob bg-cover bg-center gap-4 px-[10px]">
-        <div className="flex w-full justify-between px-4 mt-2 gap-4">
-          {/* <div className="flex gap-8 mb-4">
-            <div
-              onClick={() => {
-                setStyle("List");
-              }}
-              className="border-2 border-violet-500 p-2 rounded-md text-violet-500 font-semibold cursor-pointer hover:bg-violet-500 hover:text-white"
-            >
-              Vista lista
+      <div className="flex h-[calc(100vh-80px)]  relative ">
+        {datos ? (
+          <div
+            className={`flex flex-col w-[200px] h-[100%] ${
+              dark ? "bg-[#2f374c]" : "bg-[#e5e5e6]"
+            } items-center mb-2 ${
+              dark ? "text-[#ffb22e]" : "text-[#4c41ec]"
+            }  `}
+          >
+            <div className="flex text-center items-center  w-full mt-4 px-4 justify-between ">
+              <p
+                className={`${
+                  dark ? "text-[#dddee0]" : "text-zinc-800"
+                }  text-[14px] font-extrabold `}
+              >
+                Total de paginas:
+              </p>
+              <p className="font-semibold  text-[14px] ml-1">
+                {datos.Numero_de_Paginas ? datos.Numero_de_Paginas : "No Tiene"}
+              </p>
             </div>
-            <div
-              onClick={() => {
-                setStyle("card");
-              }}
-              className="border-2 border-violet-500 p-2 rounded-md text-violet-500 font-semibold cursor-pointer hover:bg-violet-500 hover:text-white"
-            >
-              Vista tarjetas
+            <div className="flex text-center items-center  w-full mt-4 px-4 justify-between ">
+              <p
+                className={`${
+                  dark ? "text-[#dddee0]" : "text-zinc-800"
+                }  text-[14px] font-extrabold `}
+              >
+                Paginas nuevas:
+              </p>
+              <p className="font-semibold  text-[14px] ml-1">
+                {datos.Cuantas_pagina_son_nuevas
+                  ? datos.Cuantas_pagina_son_nuevas
+                  : "No Tiene"}
+              </p>
             </div>
-          </div> */}
-        </div>
-        <div className="flex ml-4 gap-8 mb-2 ">
-          <div className="flex gap-2 items-center">
-            <div className="flex gap-2 items-center">
-              <BsFilterSquare /> Filtrar por:
+            <div className="flex text-center items-center  w-full mt-4 px-4 justify-between ">
+              <p
+                className={`${
+                  dark ? "text-[#dddee0]" : "text-zinc-800"
+                }  text-[14px] font-extrabold `}
+              >
+                Pag. correcciones:
+              </p>
+              <p className="font-semibold  text-[14px] ml-1">
+                {datos.Cuantas_paginas_son_de_correcciones
+                  ? datos.Cuantas_paginas_son_de_correcciones
+                  : "No Tiene"}
+              </p>
             </div>
-            <select
-              className="block w-[160px] border-2 px-2 border-gray-500 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ml-2"
-              name="filter"
-              id="filter"
-              onChange={(e) => setFilter(e.target.value)}
-            >
-              <option value="Todas">Todas</option>
-              <option value="Entrega Numerada">Entrega Numerada</option>
-              <option value="Entrega Correcciones">Entrega Correcciones</option>
-            </select>
-          </div>
-        </div>
+            <div className="flex text-center items-center  w-full mt-4 px-4 justify-between ">
+              <p
+                className={`${
+                  dark ? "text-[#dddee0]" : "text-zinc-800"
+                }  text-[14px] font-extrabold `}
+              >
+                Pag. 1er entrega:
+              </p>
+              <p className="font-semibold  text-[14px] ml-1">
+                {datos.Pagina_Primera_Entrega
+                  ? datos.Pagina_Primera_Entrega
+                  : ""}
+              </p>
+            </div>
+            <div className="flex text-center items-center  w-full mt-4 px-4 justify-between ">
+              <p
+                className={`${
+                  dark ? "text-[#dddee0]" : "text-zinc-800"
+                }  text-[14px] font-extrabold `}
+              >
+                C. nuevas pautas
+              </p>
+              <Tooltip
+                pos={"-top-20 right-42"}
+                title={datos && datos.Comentario_cerrado_nuevas_pautas}
+              />
+            </div>
+            <div className="flex text-center items-center  w-full mt-4 px-4 justify-between ">
+              <p
+                className={`${
+                  dark ? "text-[#dddee0]" : "text-zinc-800"
+                }  text-[14px] font-extrabold `}
+              >
+                C. cliente
+              </p>
+              <Tooltip
+                pos={"top-5 right-30"}
+                title={datos && datos.Comentario_del_cliente}
+              />
+            </div>
+            <div className="flex flex-col text-start   w-full mt-4 px-4 justify-between ">
+              <div
+                className={`flex gap-2 items-center ${
+                  dark ? "text-white" : "text-zinc-800"
+                } `}
+              >
+                <BsFilterSquare /> Filtro:
+              </div>
+              <select
+                className={`block mt-2  border-none   border-gray-500 rounded-md shadow-sm p-1  ${
+                  dark ? "bg-[#222631]" : "bg-[#f0f0f8]"
+                } text-[14px]  sm:text-sm ${
+                  dark ? "text-white" : "text-zinc-800"
+                }`}
+                name="filter"
+                id="filter"
+                onChange={(e) => setFilter(e.target.value)}
+              >
+                <option value="Todas">Todas</option>
+                <option value="Entrega Numerada">Entrega Numerada</option>
+                <option value="Entrega Correcciones">
+                  Entrega Correcciones
+                </option>
+              </select>
+            </div>
 
-        {style === "card" ? (
-          <div className="cont w-full flex justify-center items-center   ">
-            <div className="flex w-full justify-center   ">
+            <div className="flex absolute bottom-12">
+              <div className="flex flex-col gap-2 items-center">
+                <button
+                  className="w-[160px] h-8 border-2 text-xs py-1 px-2 rounded-md border-none bg-[#f73463] text-white font-semibold hover:bg-red-500  hover:text-white"
+                  onClick={() => delAllRecords()}
+                >
+                  Eliminar TODAS
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        <div className="w-[100%] h-[100%]   overflow-hidden  flex-col    ">
+          <div
+            className={` w-full h-full flex justify-start items-start  ${
+              dark ? "bg-[#222631]" : "bg-[#f0f0f8]"
+            } p-4  overflow-x-auto   `}
+          >
+            <div className="flex w-full justify-start mb-[60px] ">
               <div className="cards gap-2 flex  justify-start flex-wrap ">
                 {filtredEntys.map((form, index) => (
                   <div key={form.id}>
                     <div
                       className={`card ${
+                        dark
+                          ? "shadow-[0px_0px_10px_rgba(234,234,234,0.5)]"
+                          : "shadow-[0px_0px_10px_rgba(0,0,0,0.5)]"
+                      } ${dark ? "bg-[#2f374c]" : "bg-[#e5e5e6]"} ${
                         modifiedIndexes.includes(index) ? "modif pulse" : ""
                       }`}
                     >
@@ -413,15 +658,31 @@ const Home = ({ datos, registerID }) => {
                         <div className=" flex items-center h-[25px]   ">
                           <label
                             htmlFor="Name"
-                            className="block text-xs font-medium text-gray-700 mr-4  "
+                            className={`block  font-medium ${
+                              dark ? "text-white text" : "text-zinc-800"
+                            }  text-[16px] mr-4  `}
                           >
                             Nº de entrega
                           </label>
-                          <p>{form.Name}</p>
+                          <input
+                            type="text"
+                            id="Name"
+                            name="Name"
+                            onChange={(e) =>
+                              handleFieldChange(index, "Name", e.target.value)
+                            }
+                            disabled={form.Name === "CO"} // Deshabilitar si el valor es "CO"
+                            value={form.Name}
+                            className={`block border-2 text-lg w-[50px]  text-center bg-transparent border-none rounded-md shadow-sm ${
+                              dark ? "bg-[#222631]" : "bg-white"
+                            } text-white text-[14px] ${
+                              dark ? "text-[#dddee0]" : "text-zinc-800"
+                            }  `}
+                          />
                         </div>
                         <div className="flex gap-4 justify-end ">
                           <button
-                            className="self-end w-18 text-xs h-6   px-2 rounded-md border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white font-semibold bg-transparent"
+                            className="btn-raro w-18 text-xs h-6   px-2 rounded-md border-none  text-white  hover:text-white font-semibold bg-transparent"
                             onClick={() => delRecord(form.id)}
                           >
                             Eliminar
@@ -431,7 +692,9 @@ const Home = ({ datos, registerID }) => {
                       <div className=" flex items-center justify-between ">
                         <label
                           htmlFor="Name"
-                          className="block text-xs font-medium text-gray-700 mr-4"
+                          className={`block  font-medium ${
+                            dark ? "text-white text" : "text-zinc-800"
+                          }  text-[16px] mr-4  `}
                         >
                           Nº Entrega Gestor
                         </label>
@@ -446,68 +709,107 @@ const Home = ({ datos, registerID }) => {
                               e.target.value
                             )
                           }
+                          disabled={form.Name === "CO"} // Deshabilitar si el valor es "CO"
                           value={form.Entrega_Gestor}
-                          className="block border-2 w-[125px] text-xs text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 "
+                          className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                            dark ? "bg-[#222631]" : "bg-white"
+                          } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
                         />
                       </div>
                       <div className="flex items-center justify-between  ">
                         <label
                           htmlFor="Estado"
-                          className="block text-xs font-medium text-gray-700 mr-4"
+                          className={`block  font-medium ${
+                            dark ? "text-white text" : "text-zinc-800"
+                          }  text-[16px] mr-4  `}
                         >
                           Estado
                         </label>
                         <DropCustom
-                          options={[
-                            { value: "None", label: "-None-" },
-                            {
-                              value: "Pendiente",
-                              label: "Pendiente",
-                              color: "#dbdbdb",
-                            },
-                            {
-                              value: "Entregada",
-                              label: "Entregada",
-                              color: "#25b52a",
-                            },
-                            {
-                              value: "Paralizada",
-                              label: "Paralizada",
-                              color: "#f5c72f",
-                            },
-                            {
-                              value: "Retrasada",
-                              label: "Retrasada",
-                              color: "#eb4d4d",
-                            },
-                            {
-                              value: "Correcciones",
-                              label: "Correcciones",
-                              color: "#168aef",
-                            },
-                            {
-                              value: "Entrega asignada",
-                              label: "Entrega asignada",
-                              color: "#f8e199",
-                            },
-                            {
-                              value: "Caida",
-                              label: "Caida",
-                              color: "#9a2e47",
-                            },
-                          ]}
+                          dark={dark}
+                          options={
+                            form.Name === "CO"
+                              ? [
+                                  { value: "None", label: "-None-" },
+                                  {
+                                    value: "Entregada",
+                                    label: "Entregada",
+                                    color: "#25b52a",
+                                  },
+                                  {
+                                    value: "Paralizada",
+                                    label: "Paralizada",
+                                    color: "#f5c72f",
+                                  },
+                                  {
+                                    value: "Retrasada",
+                                    label: "Retrasada",
+                                    color: "#eb4d4d",
+                                  },
+                                  {
+                                    value: "Correcciones",
+                                    label: "Correcciones",
+                                    color: "#168aef",
+                                  },
+                                  {
+                                    value: "Entrega asignada",
+                                    label: "Entrega asignada",
+                                    color: "#f8e199",
+                                  },
+                                  {
+                                    value: "Caida",
+                                    label: "Caida",
+                                    color: "#9a2e47",
+                                  },
+                                ]
+                              : [
+                                  { value: "None", label: "-None-" },
+                                  {
+                                    value: "Pendiente",
+                                    label: "Pendiente",
+                                    color: "#dbdbdb",
+                                  },
+                                  {
+                                    value: "Entregada",
+                                    label: "Entregada",
+                                    color: "#25b52a",
+                                  },
+                                  {
+                                    value: "Paralizada",
+                                    label: "Paralizada",
+                                    color: "#f5c72f",
+                                  },
+                                  {
+                                    value: "Retrasada",
+                                    label: "Retrasada",
+                                    color: "#eb4d4d",
+                                  },
+                                  {
+                                    value: "Entrega asignada",
+                                    label: "Entrega asignada",
+                                    color: "#f8e199",
+                                  },
+                                  {
+                                    value: "Caida",
+                                    label: "Caida",
+                                    color: "#9a2e47",
+                                  },
+                                ]
+                          }
                           value={form.Estado}
                           onChange={(value) =>
                             handleFieldChange(index, "Estado", value)
                           }
-                          className="block border-2 w-[125px] text-xs text-center  border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                          className="block border-2 w-[125px]  text-center  border-none p-1 rounded-md shadow-sm bg-[#f0f0f8] dark:bg-[#222631] text-white text-[14px] focus:ring-indigo-500 focus:border-indigo-500"
                         />
                       </div>
                       {form.Name && form.Name !== "CO" ? (
                         <div className=" flex items-center justify-between">
                           <label
                             htmlFor="Paginas_a_entregar"
-                            className="block text-xs font-medium text-gray-700 mr-4"
+                            className={`block  font-medium ${
+                              dark ? "text-white text" : "text-zinc-800"
+                            }  text-[16px] mr-4  `}
                           >
                             Páginas a entregar
                           </label>
@@ -523,16 +825,20 @@ const Home = ({ datos, registerID }) => {
                               )
                             }
                             value={form.Paginas_a_entregar}
-                            className="block border-2 w-[125px] text-xs text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 "
+                            className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                              dark ? "bg-[#222631]" : "bg-white"
+                            } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
                           />
                         </div>
                       ) : null}
                       <div className="flex items-center justify-between">
                         <label
                           htmlFor={`Fecha_entrega_profesional_${index}`}
-                          className="block text-xs font-medium text-gray-700 mr-4"
+                          className={`block  font-medium ${
+                            dark ? "text-white text" : "text-zinc-800"
+                          }  text-[16px] mr-4  `}
                         >
-                          Fecha entrega profesional
+                          Fecha profesional
                         </label>
                         <div>
                           <input
@@ -547,16 +853,20 @@ const Home = ({ datos, registerID }) => {
                               );
                             }}
                             value={form.Fecha_entrega_profesional}
-                            className="block font-bold border-2 w-[125px] text-xs text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 "
+                            className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                              dark ? "bg-[#222631]" : "bg-white"
+                            } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
                           />
                         </div>
                       </div>
                       <div className=" flex items-center justify-between">
                         <label
                           htmlFor={`Fecha_entrega_cliente_${index}`}
-                          className="block text-xs font-medium text-gray-700 mr-4"
+                          className={`block  font-medium ${
+                            dark ? "text-white text" : "text-zinc-800"
+                          }  text-[16px] mr-4  `}
                         >
-                          Fecha entrega cliente
+                          Fecha cliente
                         </label>
                         <input
                           type="date"
@@ -571,13 +881,17 @@ const Home = ({ datos, registerID }) => {
                               e.target.value
                             )
                           }
-                          className="block font-bold border-2 w-[125px] text-xs text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 "
+                          className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                            dark ? "bg-[#222631]" : "bg-white"
+                          } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
                         />
                       </div>
                       <div className=" flex items-center justify-between">
                         <label
                           htmlFor={`Fecha_reagendada_${index}`}
-                          className="block text-xs font-medium text-gray-700 mr-4"
+                          className={`block  font-medium ${
+                            dark ? "text-white text" : "text-zinc-800"
+                          }  text-[16px] mr-4  `}
                         >
                           Fecha reagendada
                         </label>
@@ -594,13 +908,17 @@ const Home = ({ datos, registerID }) => {
                             )
                           }
                           value={form.Fecha_reagendada}
-                          className="block font-bold border-2 w-[125px] text-xs text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 "
+                          className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                            dark ? "bg-[#222631]" : "bg-white"
+                          }  ${dark ? "text-[#dddee0]" : "text-zinc-800"} `}
                         />
                       </div>
                       <div className="flex items-center justify-between">
                         <label
                           htmlFor="Hora"
-                          className="block text-xs font-medium text-gray-700 mr-4"
+                          className={`block  font-medium ${
+                            dark ? "text-white text" : "text-zinc-800"
+                          }  text-[16px] mr-4   `}
                         >
                           Hora profesional
                         </label>
@@ -612,14 +930,16 @@ const Home = ({ datos, registerID }) => {
                             handleFieldChange(index, "Hora", e.target.value)
                           }
                           value={form.Hora}
-                          className="block border-2 w-[125px] text-xs text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 "
+                          className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                            dark ? "bg-[#222631]" : "bg-white"
+                          } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
                         />
                       </div>
                       {form.Name && form.Name === "CO" ? (
-                        <div className=" text-xs flex items-center justify-between ">
+                        <div className="  flex items-center justify-between ">
                           <label
                             htmlFor="Correcciones"
-                            className="block text- font-medium text-gray-700 "
+                            className="block text- font-medium text-white text-[16px] "
                           >
                             Correcciones
                           </label>
@@ -628,7 +948,9 @@ const Home = ({ datos, registerID }) => {
                             id="Correcciones"
                             name="Correcciones"
                             value={form.Correcciones}
-                            className="block border-2 w-[125px] text-xs text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 "
+                            className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                              dark ? "bg-[#222631]" : "bg-[#f0f0f8]"
+                            } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
                             onChange={(e) =>
                               handleFieldChange(
                                 index,
@@ -648,25 +970,19 @@ const Home = ({ datos, registerID }) => {
                           </select>
                         </div>
                       ) : null}
-                      <div className=" text-sm flex items-center justify-between ">
+                      <div className="text-sm flex items-center justify-between">
                         <label
-                          htmlFor="Comentario"
-                          className="block text-xs font-medium text-gray-700 mr-4"
+                          htmlFor={`Comentario_${index}`}
+                          className={`block  font-medium ${
+                            dark ? "text-white text" : "text-zinc-800"
+                          }  text-[16px] mr-4  `}
                         >
                           Comentario
                         </label>
                         <input
-                          id="Comentario"
-                          name="Comentario"
-                          value={
-                            form.Comentario
-                              ? form.Comentario
-                              : tag === "Para traducir"
-                              ? "PARA TRADUCIR"
-                              : tag === "Traducir"
-                              ? "TRADUCCION"
-                              : ""
-                          }
+                          id={`Comentario_${index}`}
+                          name={`Comentario_${index}`}
+                          value={form.Comentario}
                           onChange={(e) =>
                             handleFieldChange(
                               index,
@@ -674,7 +990,9 @@ const Home = ({ datos, registerID }) => {
                               e.target.value
                             )
                           }
-                          className="block border-2 w-[200px] text-xs text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 "
+                          className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                            dark ? "bg-[#222631]" : "bg-white"
+                          } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
                         />
                       </div>
 
@@ -682,7 +1000,9 @@ const Home = ({ datos, registerID }) => {
                         <div className=" flex items-center ">
                           <label
                             htmlFor="Urgente"
-                            className="block text-xs font-medium text-gray-700 mr-4 "
+                            className={`block  font-medium ${
+                              dark ? "text-white text" : "text-zinc-800"
+                            }  text-[16px] mr-4  `}
                           >
                             Urgente?
                           </label>
@@ -703,30 +1023,6 @@ const Home = ({ datos, registerID }) => {
                             />
                           </div>
                         </div>
-                        {/* <div className="mb-4 flex items-center">
-                        <label
-                          htmlFor="Entreg_adelantado"
-                          className="block text-sm font-medium text-gray-700"
-                        >
-                          Entregó adelantado
-                        </label>
-                        <div className="flex justify-center items-center">
-                          <input
-                            type="checkbox"
-                            id="Entreg_adelantado"
-                            name="Entreg_adelantado"
-                            checked={formSets[index].Entreg_adelantado} // Access state from object
-                            onChange={() =>
-                              handleFieldChange(
-                                index,
-                                "Entreg_adelantado",
-                                !formSets[index].Entreg_adelantado
-                              )
-                            } // Update specific checkbox state
-                            className="check check2 rounded-md w-4 h-4 "
-                          />
-                        </div>
-                      </div> */}
                       </div>
                     </div>
                   </div>
@@ -734,292 +1030,50 @@ const Home = ({ datos, registerID }) => {
               </div>
             </div>
           </div>
-        ) : (
-          // VISTA DE LISTA
 
-          <div className="w-full flex flex-col justify-center items-center mt-8 ">
-            {filtredEntys.map((form, index) => (
-              <div className="list z-0 mb-4">
-                <div
-                  className=" flex justify-between pr-[130px] box1  "
-                  key={form.id}
-                >
-                  <div className="flex flex-col w-16 ">
-                    <label
-                      htmlFor="Paginas_a_entregar"
-                      className="block text-xs font-medium text-gray-700 mb-2 "
-                    >
-                      Nº Entrega
-                    </label>
-                    <p className="border-2 border-gray-500 rounded-lg flex justify-center">
-                      {form.Name}
-                    </p>
-                  </div>
-                  <div className="flex flex-col w-24 text-center ml-2 ">
-                    <label
-                      htmlFor="Paginas_a_entregar"
-                      className="block text-xs font-medium text-gray-700 mb-2 "
-                    >
-                      Nº E. Gestor
-                    </label>
-                    <input
-                      type="text"
-                      id="Entrega_Gestor"
-                      name="Entrega_Gestor"
-                      onChange={(e) =>
-                        handleFieldChange(
-                          index,
-                          "Entrega_Gestor",
-                          e.target.value
-                        )
-                      }
-                      value={form.Entrega_Gestor}
-                      className="border-2 w-24 border-gray-500 rounded-lg flex justify-center text-center"
-                    />
-                  </div>
-
-                  <div className="mb-4 flex flex-col items-center ml-1 ">
-                    <label
-                      htmlFor="Estado"
-                      className="block  text-sm font-medium text-gray-700"
-                    >
-                      Estado
-                    </label>
-                    <select
-                      id="Estado"
-                      name="Estado"
-                      value={form.Estado}
-                      onChange={(e) =>
-                        handleFieldChange(index, "Estado", e.target.value)
-                      }
-                      className="border-2  w-32 h-[28px]  text-xs border-gray-500 rounded-lg flex justify-center text-center mt-[4px]"
-                    >
-                      <option value="None">-None-</option>
-                      {form.Name && form.Name !== "CO" ? (
-                        <option value="Pendiente">Pendiente</option>
-                      ) : null}
-                      <option value="Entregada">Entregada</option>
-                      <option value="Paralizada">Paralizada</option>
-                      <option value="Retrasada">Retrasada</option>
-                      {form.Name && form.Name === "CO" ? (
-                        <option value="Correcciones">Correcciones</option>
-                      ) : null}
-                      <option value="Entrega asignada">Entrega asignada</option>
-                      <option value="Caida">Caida</option>
-                    </select>
-                  </div>
-                  {form.Name && form.Name !== "CO" ? (
-                    <div className="mb-4 flex flex-col items-center ml-2 ">
-                      <label
-                        htmlFor="Paginas_a_entregar"
-                        className="block text-xs font-medium text-gray-700 mb-2 "
-                      >
-                        Páginas a entregar
-                      </label>
-                      <input
-                        type="text"
-                        id="Paginas_a_entregar"
-                        name="Paginas_a_entregar"
-                        onChange={(e) =>
-                          handleFieldChange(
-                            index,
-                            "Paginas_a_entregar",
-                            e.target.value
-                          )
-                        }
-                        value={form.Paginas_a_entregar}
-                        className="border-2 w-24 border-gray-500 rounded-lg flex justify-center text-center"
-                      />
-                    </div>
-                  ) : null}
-                  <div className="mb-4 flex flex-col items-center ml-4 ">
-                    <label
-                      htmlFor="Fecha_entrega_profesional"
-                      className="block text-xs font-medium text-gray-700 mb-2 "
-                    >
-                      Fecha entrega profesional
-                    </label>
-                    <input
-                      type="date"
-                      id="Fecha_entrega_profesional"
-                      name="Fecha_entrega_profesional"
-                      required
-                      onChange={(e) =>
-                        handleFieldChange(
-                          index,
-                          "Fecha_entrega_profesional",
-                          e.target.value
-                        )
-                      }
-                      value={form.Fecha_entrega_profesional}
-                      className="border-2 w-32 h-[26px]  text-xs border-gray-500 rounded-lg flex justify-center text-center"
-                    />
-                  </div>
-                  <div className="mb-4 flex flex-col items-center ml-4 ">
-                    <label
-                      htmlFor="Fecha_entrega_cliente"
-                      className="block text-xs font-medium text-gray-700 mb-2 "
-                    >
-                      Fecha entrega cliente
-                    </label>
-                    <input
-                      type="date"
-                      id="Fecha_entrega_cliente"
-                      name="Fecha_entrega_cliente"
-                      value={form.Fecha_entrega_cliente}
-                      required
-                      onChange={(e) =>
-                        handleFieldChange(
-                          index,
-                          "Fecha_entrega_cliente",
-                          e.target.value
-                        )
-                      }
-                      className="border-2 w-32 h-[26px]  text-xs border-gray-500 rounded-lg flex justify-center text-center"
-                    />
-                  </div>
-                  <div className="mb-4 flex flex-col items-center ml-4 ">
-                    <label
-                      htmlFor="Fecha_entrega_cliente"
-                      className="block text-xs font-medium text-gray-700 mb-2 "
-                    >
-                      Fecha reagendada
-                    </label>
-                    <input
-                      type="date"
-                      id="Fecha_reagendada"
-                      name="Fecha_reagendada"
-                      readOnly
-                      onChange={(e) =>
-                        handleFieldChange(
-                          index,
-                          "Fecha_reagendada",
-                          e.target.value
-                        )
-                      }
-                      value={form.Fecha_reagendada}
-                      className="border-2 w-32 h-[26px]  text-xs border-gray-500 rounded-lg flex justify-center text-center"
-                    />
-                  </div>
-                  <div className="mb-4 flex flex-col items-center ml-4 ">
-                    <label
-                      htmlFor="Hora"
-                      className="block text-xs font-medium text-gray-700 mb-2 "
-                    >
-                      Hora profesional
-                    </label>
-                    <input
-                      type="time"
-                      id="Hora"
-                      name="Hora"
-                      onChange={(e) =>
-                        handleFieldChange(index, "Hora", e.target.value)
-                      }
-                      value={form.Hora}
-                      className="border-2 w-32 h-[26px]  text-xs border-gray-500 rounded-lg flex justify-center text-center"
-                    />
-                  </div>
-                  {form.Name && form.Name === "CO" ? (
-                    <div className="mb-4 flex flex-col items-center ml-4 ">
-                      <label
-                        htmlFor="Correcciones"
-                        className="block text-xs font-medium text-gray-700 mb-2 "
-                      >
-                        Correcciones
-                      </label>
-
-                      <select
-                        id="Correcciones"
-                        name="Correcciones"
-                        value={form.Correcciones}
-                        className="block w-[200px] h-[26px] border-2 px-2 border-gray-500 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ml-2"
-                        onChange={(e) =>
-                          handleFieldChange(
-                            index,
-                            "Correcciones",
-                            e.target.value
-                          )
-                        }
-                      >
-                        <option value="None">-None-</option>
-                        <option value="NA">NA</option>
-                        <option value="Relacionadas con el profesional">
-                          Relacionadas con el profesional
-                        </option>
-                        <option value="Relacionadas con cambios pedidos por el cliente">
-                          Relacionadas con cambios pedidos por el cliente
-                        </option>
-                      </select>
-                    </div>
-                  ) : null}
-                  {/* coment */}
-                </div>
-                <div className=" flex gap-8">
-                  <div className="mb-4 urgente flex items-center">
-                    <label
-                      htmlFor="Urgente"
-                      className="block text-xs font-medium text-gray-700"
-                    >
-                      Urgente?
-                    </label>
-                    <div className=" justify-center items-center">
-                      <input
-                        type="checkbox"
-                        id="Urgente"
-                        name="Urgente"
-                        checked={formSets[index].Urgente} // Access state from object
-                        onChange={() =>
-                          handleFieldChange(
-                            index,
-                            "Urgente",
-                            !formSets[index].Urgente
-                          )
-                        } // Update specific checkbox state
-                        className="rounded-md w-4 h-4 mt-1 ml-6"
-                      />
-                    </div>
-                  </div>
-
-                  <div className=" comentario  ">
-                    <label
-                      htmlFor="Comentario"
-                      className="block text-xs font-medium text-gray-700 mr-4"
-                    >
-                      Comentario
-                    </label>
-                    <textarea
-                      id="Comentario"
-                      name="Comentario"
-                      value={form.Comentario}
-                      onChange={(e) =>
-                        handleFieldChange(index, "Comentario", e.target.value)
-                      }
-                      className=" area border-2  h-[26px] flex justify-center items-center pl-4 text-start text-xs border-gray-500 rounded-lg "
-                    ></textarea>
-                  </div>
-                  <div className="buttons ">
-                    <button
-                      className="self-end w-18 text-xs h-8  py-1 px-2 rounded-md border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white font-semibold bg-transparent"
-                      onClick={() => delRecord(form.id)}
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="w-full h-[125px]"></div>
+          <div className="w-full h-[125px]"></div>
+        </div>
+        <div className="fixed top-[95px] right-6 ">
+          <button
+            className={` w-12  h-12 border-2 text-2xl shadow-xl  rounded-full ${
+              dark ? "bg-[#ff862e]" : "bg-[#4c5af6]"
+            } border-none text-white font-semibold  `}
+            onClick={() => setEleccion(!eleccion)}
+          >
+            +
+          </button>
+          {eleccion ? (
+            <Eleccion togglePopup={togglePopup} togglePopupCo={togglePopupCo} />
+          ) : null}
+        </div>
+        <div
+          onClick={() => handleDarkMode(false)}
+          className={`fixed bottom-[95px] right-8 cursor-pointer ${
+            dark ? "text-white" : "text-[#4c5af6]"
+          } `}
+        >
+          <BsSunFill />
+        </div>
+        <div
+          onClick={() => handleDarkMode(true)}
+          className={`fixed bottom-[55px] right-8 cursor-pointer ${
+            dark ? "text-white" : "text-[#4c5af6]"
+          } `}
+        >
+          <BsMoonStars />
+        </div>
       </div>
+
       {showPopup && (
         <PopupForm
           registerID={registerID}
           onAddFormSet={handleRecord}
           onAddFormSet2={handleRecord2}
           togglePopup={togglePopup}
-          formSets={formSets}
+          cargarRegistros={cargarRegistros}
+          records={records}
           datos={datos}
+          dark={dark}
         />
       )}
       {showPopupCo && (
@@ -1029,7 +1083,9 @@ const Home = ({ datos, registerID }) => {
           onAddFormSet2={handleRecord2}
           togglePopupCo={togglePopupCo}
           formSets={formSets}
+          records={records}
           datos={datos}
+          dark={dark}
         />
       )}
     </div>

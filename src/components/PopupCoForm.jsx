@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Swal from "sweetalert2";
+import { getRelatedRecords } from "../functions/apiFunctions";
 
 const PopupCoForm = ({
   datos,
@@ -7,9 +8,12 @@ const PopupCoForm = ({
   onAddFormSet,
   togglePopupCo,
   formSets,
+  records,
+  dark,
 }) => {
-  console.log("Form", formSets);
+  console.log(records);
 
+  const tag = datos && datos.Tag ? datos.Tag[0].name : null;
   const [formData, setFormData] = useState({
     Name: "CO",
     Estado: "Correcciones",
@@ -18,15 +22,42 @@ const PopupCoForm = ({
     Fecha_entrega_profesional: "",
     Fecha_entrega_cliente: "",
     Fecha_reagendada: "",
-    Comentario: "",
+    Comentario:
+      tag === "Para traducir"
+        ? "PARA TRADUCIR"
+        : tag === "Traducir"
+        ? "TRADUCCION"
+        : "",
     Hora: "",
     Correcciones: "",
     Urgente: false,
     Entreg_adelantado: false,
     Entrega_Gestor: "CO",
+    Ocultar_entrega_gestor: "",
   });
 
-  const tag = datos && datos.Tag ? datos.Tag[0].name : null;
+  const [latestDates, setLatestDates] = useState({
+    clientDate: null,
+    professionalDate: null,
+  });
+
+  const getRecords = async () => {
+    try {
+      const response = await getRelatedRecords(
+        "Coordinacion",
+        registerID,
+        "Entregas_asociadas"
+      );
+      const registros = response.register || [];
+
+      const validFormSets = registros.filter((item) => item.Name !== "CO");
+      console.log(validFormSets);
+
+      return registros;
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -49,6 +80,7 @@ const PopupCoForm = ({
   }, [formData.Fecha_entrega_profesional]);
 
   const handleSubmit = (e) => {
+    getRecords();
     e.preventDefault();
     if (
       formData.Estado === "Correcciones" &&
@@ -72,8 +104,35 @@ const PopupCoForm = ({
       });
       return;
     }
-    onAddFormSet(formData);
-    console.log(formData);
+    // Lógica para determinar Estado_entrega_cliente
+    let Estado_entrega_cliente = "";
+    switch (formData.Estado) {
+      case "Entregada":
+        Estado_entrega_cliente = "Recibida";
+        break;
+      case "Correcciones":
+        Estado_entrega_cliente = "Pendiente";
+        break;
+      case "Retrasada":
+        Estado_entrega_cliente = Estado_entrega_cliente || "Pendiente";
+        break;
+      default:
+        Estado_entrega_cliente = formData.Estado;
+        break;
+    }
+    // Verificar y ajustar Estado_entrega_cliente si es -None-
+    if (Estado_entrega_cliente === "-None-") {
+      Estado_entrega_cliente = "Pendiente";
+    }
+    // Aquí verificamos si tag es "Traducir" para ajustar Ocultar_entrega_gestor
+    const shouldHideDeliveryManager = tag === "Traducir";
+
+    onAddFormSet({
+      ...formData,
+      Ocultar_entrega_gestor: shouldHideDeliveryManager, // Ajustamos el valor aquí
+      Estado_entrega_cliente: Estado_entrega_cliente, // Ajustamos el valor aquí
+    });
+
     setFormData({
       Name: "CO",
       Estado: "Correcciones",
@@ -107,30 +166,107 @@ const PopupCoForm = ({
 
     return currentDate.toISOString().split("T")[0]; // Formatea la fecha en YYYY-MM-DD
   };
+  function formatDate(dateString) {
+    if (dateString) {
+      // Check if dateString is not null
+      const [year, month, day] = dateString.split("-");
+      return `${parseInt(day)}/${parseInt(month)}/${year}`;
+    } else {
+      return ""; // Or return any default value you prefer
+    }
+  }
+
+  if (latestDates && latestDates.clientDate) {
+    // Check if latestDates exists and clientDate has a value
+    const formattedClientDate = formatDate(latestDates.clientDate);
+    console.log(formattedClientDate); // Replace with your desired action
+  } else {
+    console.log(
+      "latestDates.clientDate is null or latestDates does not exist."
+    );
+  }
+  const findLatestDates = () => {
+    let latestClientDate = null;
+    let latestProfessionalDate = null;
+
+    records.forEach((record) => {
+      if (record.Fecha_entrega_cliente) {
+        const clientDate = new Date(record.Fecha_entrega_cliente);
+        if (!latestClientDate || clientDate > latestClientDate) {
+          latestClientDate = clientDate;
+        }
+      }
+      if (record.Fecha_entrega_profesional) {
+        const professionalDate = new Date(record.Fecha_entrega_profesional);
+        if (
+          !latestProfessionalDate ||
+          professionalDate > latestProfessionalDate
+        ) {
+          latestProfessionalDate = professionalDate;
+        }
+      }
+    });
+
+    setLatestDates({
+      clientDate: latestClientDate
+        ? latestClientDate.toISOString().split("T")[0]
+        : null,
+      professionalDate: latestProfessionalDate
+        ? latestProfessionalDate.toISOString().split("T")[0]
+        : null,
+    });
+  };
+
+  useEffect(() => {
+    if (records && records.length > 0) {
+      findLatestDates();
+    }
+  }, [records]);
 
   return (
     <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center bg-gray-800 bg-opacity-50 z-50">
-      <div className="bg-white p-8 rounded-lg shadow-lg w-[30%]">
+      <div
+        className={`${
+          dark ? "bg-[#2f374c]" : "bg-[#f0f1f1]"
+        } p-6 rounded-lg  w-[40%] h-[90%] shadow-[0px_0px_30px_rgba(234,234,234,0.5)] `}
+      >
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold mb-4"> Nueva Entrada</h2>
+          <h2
+            className={`text-xl ${
+              dark ? "text-[#ff862e]" : "text-[#2e27e9]"
+            }  font-semibold mb-4`}
+          >
+            Nueva Entrada
+          </h2>
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4 flex items-center">
-            <label
-              htmlFor="Paginas_a_entregar"
-              className="block text-sm font-medium text-gray-700 mr-4"
-            >
-              Nº de entrega
-            </label>
-            <p>{formData.Name}</p>
-          </div>
-
-          <div className="flex w-full justify-between">
-            <div className="w-[100%] ">
+        <form onSubmit={handleSubmit} className=" h-[90%] ">
+          <div className="flex w-[100%] h-full ">
+            <div className="w-[100%] h-full flex flex-col justify-between  ">
+              <div className="mb-4 flex items-center justify-between  ">
+                <label
+                  htmlFor="Paginas_a_entregar"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
+                >
+                  Nº de entrega
+                </label>
+                <p
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
+                >
+                  {formData.Name}
+                </p>
+              </div>
               <div className="mb-4 flex items-center justify-between ">
                 <label
                   htmlFor="Estado"
-                  className="block text-sm font-medium text-gray-700"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
                 >
                   Estado
                 </label>
@@ -139,7 +275,11 @@ const PopupCoForm = ({
                   name="Estado"
                   value={formData.Estado}
                   onChange={handleChange}
-                  className="block w-[125px]  border-2 px-2 border-gray-500 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ml-2"
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
                 >
                   <option value="None">-None-</option>
                   {/* <option value="Pendiente">Pendiente</option> */}
@@ -147,11 +287,11 @@ const PopupCoForm = ({
                   <option value="Paralizada">Paralizada</option>
                   <option value="Retrasada">Retrasada</option>
                   <option value="Correcciones">Correcciones</option>
-                  <option value="Entrega asignada">Entrega asignada</option>
+                  {/* <option value="Entrega asignada">Entrega asignada</option> */}
                   <option value="Caida">Caida</option>
                 </select>
               </div>
-              <div className="mb-4 flex items-center justify-between">
+              {/* <div className="mb-4 flex items-center justify-between">
                 <label
                   htmlFor="Paginas_a_entregar"
                   className="block text-sm font-medium text-gray-700"
@@ -166,11 +306,13 @@ const PopupCoForm = ({
                   onChange={handleChange}
                   className="block border-2 w-[125px] text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 />
-              </div>
-              <div className="mb-4 flex items-center justify-between">
+               </div> */}
+              <div className="mb-2 flex items-center justify-between">
                 <label
                   htmlFor="Fecha_entrega_profesional"
-                  className="block text-sm font-medium text-gray-700 mr-4"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
                 >
                   Fecha entrega profesional
                 </label>
@@ -180,13 +322,25 @@ const PopupCoForm = ({
                   name="Fecha_entrega_profesional"
                   value={formData.Fecha_entrega_profesional}
                   onChange={handleChange}
-                  className="block border-2 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
                 />
               </div>
-              <div className="mb-4 flex items-center justify-between">
+              <p className="text-sm text-[#f73463] font-semibold mb-2">
+                {latestDates.professionalDate
+                  ? formatDate(latestDates.professionalDate) +
+                    " es la fecha anteriormente agendada para el profesional en este proyecto"
+                  : "No hay fechas anteriores"}
+              </p>
+              <div className="mb-2 flex items-center justify-between">
                 <label
                   htmlFor="Fecha_entrega_cliente"
-                  className="block text-sm font-medium text-gray-700 mr-4"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
                 >
                   Fecha entrega cliente
                 </label>
@@ -196,13 +350,25 @@ const PopupCoForm = ({
                   name="Fecha_entrega_cliente"
                   value={formData.Fecha_entrega_cliente}
                   onChange={handleChange}
-                  className="block border-2 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
                 />
               </div>
+              <p className="text-sm text-[#f73463] font-semibold mb-2">
+                {latestDates.clientDate
+                  ? formatDate(latestDates.clientDate) +
+                    " es la fecha anteriormente agendada para el cliente en este proyecto"
+                  : "No hay fechas anteriores"}
+              </p>
               <div className="mb-4 flex items-center justify-between">
                 <label
                   htmlFor="Hora"
-                  className="block text-sm font-medium text-gray-700"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
                 >
                   Hora profesional
                 </label>
@@ -212,14 +378,20 @@ const PopupCoForm = ({
                   name="Hora"
                   value={formData.Hora}
                   onChange={handleChange}
-                  className="block border-2 w-[125px] text-center border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
                 />
               </div>
               <div className="flex justify-between mt-2">
                 <div className="mb-4 flex items-center">
                   <label
                     htmlFor="Urgente"
-                    className="block text-sm font-medium text-gray-700"
+                    className={`block text-md 4xl:text-lg font-medium ${
+                      dark ? "text-white" : "text-black"
+                    }  mr-4`}
                   >
                     Urgente?
                   </label>
@@ -238,7 +410,9 @@ const PopupCoForm = ({
               <div className="mb-4 w-full flex items-center justify-between">
                 <label
                   htmlFor="Correcciones"
-                  className="block text-sm font-medium text-gray-700"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
                 >
                   Correcciones
                 </label>
@@ -248,7 +422,11 @@ const PopupCoForm = ({
                   name="Correcciones"
                   value={formData.Correcciones}
                   onChange={handleChange}
-                  className="block w-[125px] border-2 ml-4 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
+                    dark ? "bg-[#222631]" : "bg-white"
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
                 >
                   <option value="None">-None-</option>
                   <option value="NA">NA</option>
@@ -263,22 +441,16 @@ const PopupCoForm = ({
               <div className="mb-4 ">
                 <label
                   htmlFor="Comentario"
-                  className="block  text-sm font-medium text-gray-700"
+                  className={`block text-md 4xl:text-lg font-medium ${
+                    dark ? "text-white" : "text-black"
+                  }  mr-4`}
                 >
                   Comentario
                 </label>
                 <textarea
                   id="Comentario"
                   name="Comentario"
-                  value={
-                    formData.Comentario
-                      ? formData.Comentario
-                      : tag === "Para traducir"
-                      ? "PARA TRADUCIR"
-                      : tag === "Traducir"
-                      ? "TRADUCCION"
-                      : ""
-                  }
+                  value={formData.Comentario}
                   onChange={handleChange}
                   className="mt-1 block w-full border-2 pl-2 pt-1 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 ></textarea>
@@ -287,20 +459,20 @@ const PopupCoForm = ({
               <div className="flex justify-end gap-4">
                 <button
                   type="submit"
-                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#43d1a7] hover:bg-[#37c298] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
-                  Agregar
+                  Guardar
                 </button>
                 <button
                   onClick={() => togglePopupCo()}
-                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-500 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#f74363] hover:bg-[#db3a58] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Cerrar
                 </button>
               </div>
-            </div>
 
-            <div></div>
+              <div></div>
+            </div>
           </div>
         </form>
       </div>
