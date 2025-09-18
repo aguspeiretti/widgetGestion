@@ -9,22 +9,31 @@ import {
   updateRecord,
   deleteAllRecords,
 } from "../functions/apiFunctions";
+import {
+  isValidUrl,
+  redireccionWorkdrive,
+  truncateText,
+  closeWidget,
+  formatDate,
+  getFieldValues,
+} from "../hooks/FunctionHooks";
+import useRecordStore from "../context/recodStore";
+import PopupCoForm from "../components/PopupCoForm";
 import PopupForm from "../components/PopupForm";
 import Swal from "sweetalert2";
 import Eleccion from "../components/Eleccion";
-import PopupCoForm from "../components/PopupCoForm";
-import { BsFilterSquare } from "react-icons/bs";
-import useRecordStore from "../context/recodStore";
+import BarraNavegacionSuperior from "../components/BarraNavegacionSuperior";
+import SegundaBarraDeNavegacion from "../components/SegundaBarraDeNavegacion";
+import BarraNavegacionLateral from "../components/BarraNavegacionLateral";
 import DropCustom from "../components/DropCustom";
-import PopCalendario from "../components/PopCalendario";
-import { FaRegClock } from "react-icons/fa";
-import { MdCheck } from "react-icons/md";
-import { IoCloseCircleOutline } from "react-icons/io5";
-import Tooltip from "../components/Tooltip";
-import { BsMoonStars } from "react-icons/bs";
-import { BsSunFill } from "react-icons/bs";
+import rechazo from "../assets/rechazo.png";
+import carpeta from "../assets/carpeta.png";
+import ia from "../assets/Untitled-1.gif";
 
-const Home = ({ datos, registerID }) => {
+import { MdKeyboardArrowDown, MdKeyboardArrowUp } from "react-icons/md";
+import { BsMoonStars, BsSunFill } from "react-icons/bs";
+
+const Home = ({ datos, registerID, handleResize }) => {
   const [filter, setFilter] = useState("Todas");
   const [eleccion, setEleccion] = useState(false);
   const [formSets, setFormSets] = useState([]);
@@ -33,37 +42,92 @@ const Home = ({ datos, registerID }) => {
   const [modifiedIndexes, setModifiedIndexes] = useState([]);
   const entregasNumerdas = formSets.filter((entry) => entry.Name !== "CO");
   const entregaCorrecciones = formSets.filter((entry) => entry.Name === "CO");
-  const tag = datos && datos.Tag ? datos.Tag[0].name : null;
   const { getRelatedRecord, records } = useRecordStore();
+  const [expandedCardId, setExpandedCardId] = useState(null);
+  const [expandedCardId2, setExpandedCardId2] = useState(null);
+  const [selectedMotivos, setSelectedMotivos] = useState({});
+  const [motivosLuncher, setMotivosLuncher] = useState(false);
+  const [fields, setFields] = useState([]);
+  const [dropOpen, setDropOpen] = useState(false);
+  const [realizarGuardado, setRealizarGuardado] = useState(false);
+  const [enviarEntrega, setEnviarEntrega] = useState(false);
   const [dark, setDark] = useState(() => {
     const savedDarkMode = localStorage.getItem("darkMode");
     return savedDarkMode ? JSON.parse(savedDarkMode) : false;
   });
+
   const filterMap = {
     "Entrega Numerada": entregasNumerdas,
     "Entrega Correcciones": entregaCorrecciones,
     default: formSets,
   };
+
   const filtredEntys = [...(filterMap[filter] || filterMap.default)];
 
   useEffect(() => {
-    getRelatedRecord(registerID);
-
-    cargarRegistros();
+    getFields();
   }, []);
-
-  useEffect(() => {
-    cargarRegistros();
-  }, [registerID]);
-
   useEffect(() => {
     getRecords();
-  }, [records, tag]);
+  }, [records]);
+  const CargarCarpetas = () => {
+    setTimeout(() => {
+      especificRecords();
+    }, 5000);
+  };
+  useEffect(() => {
+    const initialMotivos = {}; // Crear un objeto inicial
+
+    // Iterar sobre los formularios para construir el estado inicial
+    filtredEntys.forEach((form) => {
+      initialMotivos[form.id] = form.Motivo_no_procesada?.reduce(
+        (acc, motivo) => {
+          acc[motivo] = true; // Marcar como `true` los valores existentes
+          return acc;
+        },
+        {}
+      );
+    });
+
+    setSelectedMotivos(initialMotivos); // Establecer el estado inicial
+  }, [motivosLuncher]);
 
   const cargarRegistros = async () => {
-    await getRelatedRecord(registerID);
+    try {
+      // Muestra la alerta de carga
+      CargarCarpetas();
+      Swal.fire({
+        title: "Cargando registros",
+        text: "Por favor espera...",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => {
+          Swal.showLoading(); // Muestra el indicador de carga
+        },
+      });
+
+      // await sleep(3000); // Simula un retraso de 3 segundos
+      await getRelatedRecord(registerID); // Llama a tu función principal
+
+      // Cierra la alerta después de que todo termine
+      Swal.close();
+
+      // Opcional: Muestra una alerta de éxito
+    } catch (error) {
+      // Cierra la alerta de carga en caso de error
+      Swal.close();
+
+      // Opcional: Muestra una alerta de error
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Hubo un problema al cargar los registros.",
+      });
+    }
   };
   const getRecords = async () => {
+    console.log("getRecords");
+
     try {
       const response = await getRelatedRecords(
         "Coordinacion",
@@ -99,9 +163,16 @@ const Home = ({ datos, registerID }) => {
       });
 
       setFormSets(orderedFormSets);
+      setMotivosLuncher(!motivosLuncher);
     } catch (error) {
       console.error("Error al obtener registros:", error);
     }
+  };
+  const toggleCard = (cardId) => {
+    setExpandedCardId(cardId === expandedCardId ? null : cardId);
+  };
+  const toggleCard2 = (cardId) => {
+    setExpandedCardId2(cardId === expandedCardId2 ? null : cardId);
   };
   const togglePopup = () => {
     setShowPopup(!showPopup);
@@ -111,109 +182,122 @@ const Home = ({ datos, registerID }) => {
     setShowPopupCo(!showPopupCo);
     setEleccion(false);
   };
-  const handleRecord = (formData) => {
-    const newRecord = { ...formData };
-    insertRecord(newRecord);
-    cargarRegistros()
-      .then((result) => {
-        setFormSets((prevFormSets) => [...prevFormSets, newRecord]);
-        // togglePopup();
-      })
-      .catch((error) => {
-        console.error("Error al agregar el registro:", error);
-      });
-  };
-  const handleRecord2 = (formData) => {
-    const newRecord = { ...formData };
-    insertRecord2(newRecord);
-    cargarRegistros()
-      .then((result) => {
-        setFormSets((prevFormSets) => [...prevFormSets, newRecord]);
-      })
-      .catch((error) => {
-        console.error("Error al agregar el registro:", error);
-      });
-  };
-  const handleFieldChange = (index, fieldName, value) => {
-    setFormSets((prevFormSets) => {
-      const newFormSets = [...prevFormSets];
-      newFormSets[index] = {
-        ...newFormSets[index],
-        [fieldName]: value,
-      };
-
-      if (!modifiedIndexes.includes(index)) {
-        setModifiedIndexes([...modifiedIndexes, index]);
-      }
-
-      // Lógica adicional para fechas si es necesario
-
-      return newFormSets;
-    });
-  };
   const delRecord = async (id) => {
-    const result = await Swal.fire({
-      title: "¿Estás seguro?",
-      text: "Esta acción no se puede deshacer",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Sí, eliminar",
-      cancelButtonText: "Cancelar",
-    });
+    if (hasUnsavedChanges()) {
+      const result = await Swal.fire({
+        title: "¿Guardar cambios antes de eliminar?",
+        text: "Hay cambios sin guardar. Al eliminar la tarjeta los cambios se guardaran automaticamente!",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: "Sí, Eliminar",
+        cancelButtonText: "No",
+      });
 
-    if (result.isConfirmed) {
-      try {
-        Swal.fire({
-          title: "Eliminando entrega",
-          text: "Por favor espere...",
-          allowOutsideClick: false,
-          showConfirmButton: false,
-          willOpen: () => {
-            Swal.showLoading();
-          },
-        });
+      if (result.isConfirmed) {
+        await saveAllChangesWhithOutClose();
 
-        const deleteResult = await deleteRecord(id, false);
-
-        if (deleteResult.status === "success") {
-          setFormSets((prevFormSets) =>
-            prevFormSets.filter((form) => form.id !== id)
-          );
-
-          Swal.fire(
-            "Eliminado",
-            "El registro se ha eliminado correctamente.",
-            "success"
-          );
-        } else {
-          let errorMessage = "No se pudo eliminar el registro. ";
-          if (deleteResult.error) {
-            errorMessage += `Error: ${deleteResult.error}`;
-          }
-          if (deleteResult.details) {
-            errorMessage += ` Detalles: ${JSON.stringify(
-              deleteResult.details
-            )}`;
-          }
-
-          console.error("Error al eliminar el registro:", deleteResult);
-
+        try {
           Swal.fire({
-            title: "Error",
-            text: errorMessage,
-            icon: "error",
+            title: "Eliminando entrega",
+            text: "Por favor espere...",
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            willOpen: () => {
+              Swal.showLoading();
+            },
           });
+          const deleteResult = await deleteRecord(id, false);
+
+          if (deleteResult.status === "success") {
+            setFormSets((prevFormSets) =>
+              prevFormSets.filter((form) => form.id !== id)
+            );
+
+            Swal.fire(
+              "Eliminado",
+              "El registro se ha eliminado correctamente.",
+              "success"
+            );
+          } else {
+            let errorMessage =
+              "No se pudo eliminar el registro. Contacte con el administrador ";
+
+            console.error("Error al eliminar el registro:", deleteResult);
+
+            Swal.fire({
+              title: "Error",
+              text: errorMessage,
+              icon: "error",
+            });
+          }
+        } catch (error) {
+          console.error("Error inesperado al eliminar el registro:", error);
+          Swal.fire(
+            "Error",
+            "Hubo un problema inesperado al eliminar el registro",
+            "error"
+          );
         }
-      } catch (error) {
-        console.error("Error inesperado al eliminar el registro:", error);
-        Swal.fire(
-          "Error",
-          "Hubo un problema inesperado al eliminar el registro",
-          "error"
-        );
+
+        Swal.close(); // Cierra el mensaje de guardando
       }
     } else {
-      Swal.fire("Cancelado", "El registro no se ha eliminado", "info");
+      const result = await Swal.fire({
+        title: "¿Estás seguro?",
+        text: "Esta acción no se puede deshacer",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Sí, eliminar",
+        cancelButtonText: "Cancelar",
+      });
+
+      if (result.isConfirmed) {
+        try {
+          Swal.fire({
+            title: "Eliminando entrega",
+            text: "Por favor espere...",
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            willOpen: () => {
+              Swal.showLoading();
+            },
+          });
+
+          const deleteResult = await deleteRecord(id, false);
+
+          if (deleteResult.status === "success") {
+            setFormSets((prevFormSets) =>
+              prevFormSets.filter((form) => form.id !== id)
+            );
+
+            Swal.fire(
+              "Eliminado",
+              "El registro se ha eliminado correctamente.",
+              "success"
+            );
+          } else {
+            let errorMessage =
+              "No se pudo eliminar el registro. Contacte con el administrador ";
+
+            console.error("Error al eliminar el registro:", deleteResult);
+
+            Swal.fire({
+              title: "Error",
+              text: errorMessage,
+              icon: "error",
+            });
+          }
+        } catch (error) {
+          console.error("Error inesperado al eliminar el registro:", error);
+          Swal.fire(
+            "Error",
+            "Hubo un problema inesperado al eliminar el registro",
+            "error"
+          );
+        }
+      } else {
+        Swal.fire("Cancelado", "El registro no se ha eliminado", "info");
+      }
     }
   };
   const delAllRecords = async () => {
@@ -316,15 +400,132 @@ const Home = ({ datos, registerID }) => {
       "Correcciones",
       "Comentario",
       "Urgente",
+      "Creado_por_widget",
+      "No_procesada",
+      "Motivo_no_procesada",
+      "Comentario_no_procesada_por_Coordinacion",
+      "Entrega_enviada_por_correo",
+      "Comentarios_profesional",
     ];
 
     const updatedData = {};
+
     fieldsToUpdate.forEach((field) => {
       if (recordData.hasOwnProperty(field)) {
         updatedData[field] = recordData[field];
       }
     });
 
+    const motivosIndividuales = Object.keys(
+      selectedMotivos[recordData.id] || []
+    );
+    updatedData.Motivo_no_procesada = motivosIndividuales;
+
+    // Solo setea Editado_por_widget si la tarjeta específica ha sido editada
+    updatedData.Editado_por_widget =
+      formSets[index]?.Editado_por_widget || false;
+
+    // if (enviarEntrega === true) {
+    //   updatedData.Entrega_enviada_por_correo = true;
+    // }
+    console.log(formSets[index]?.Entrega_enviada_por_correo);
+
+    if (formSets[index]?.Entrega_enviada_por_correo === true) {
+      updatedData.Entrega_enviada_por_correo = true;
+    }
+
+    if (
+      (updatedData.Entrega_Gestor !== "CO" &&
+        (updatedData.Paginas_a_entregar === "" ||
+          updatedData.Paginas_a_entregar === null)) ||
+      updatedData.Fecha_entrega_profesional === "" ||
+      updatedData.Fecha_entrega_profesional === null ||
+      updatedData.Fecha_entrega_cliente === "" ||
+      updatedData.Fecha_entrega_cliente === null ||
+      updatedData.Name === "" ||
+      updatedData.Name === null ||
+      updatedData.Entrega_Gestor === "" ||
+      updatedData.Entrega_Gestor === null ||
+      updatedData.Estado === "" ||
+      updatedData.Estado === null ||
+      updatedData.No_procesada === true ||
+      updatedData.No_procesada === null ||
+      updatedData.Motivo_no_procesada === "" ||
+      updatedData.Motivo_no_procesada === null ||
+      updatedData.Comentario_no_procesada_por_Coordinacion === "" ||
+      updatedData.Comentario_no_procesada_por_Coordinacion === null
+      // ||updatedData.Entrega_enviada_por_correo === "" ||
+      // updatedData.Entrega_enviada_por_correo === null
+    ) {
+      const camposInvalidos = [];
+
+      // Validar 'Paginas_a_entregar' solo si 'Entrega_Gestor' no es "CO"
+      if (updatedData.Entrega_Gestor !== "CO") {
+        if (
+          updatedData.Paginas_a_entregar === "" ||
+          updatedData.Paginas_a_entregar === null
+        ) {
+          camposInvalidos.push("Paginas a entregar");
+        }
+      }
+
+      // Validar los otros campos
+      if (
+        updatedData.Fecha_entrega_profesional === "" ||
+        updatedData.Fecha_entrega_profesional === null
+      ) {
+        camposInvalidos.push("Fecha entrega profesional");
+      }
+      if (
+        !updatedData.Entrega_enviada_por_correo &&
+        formSets[index]?.requiresEmail === true // Validar solo si este índice requiere correo
+      ) {
+        camposInvalidos.push("Entrega enviada por correo");
+      }
+
+      if (
+        updatedData.Fecha_entrega_cliente === "" ||
+        updatedData.Fecha_entrega_cliente === null
+      ) {
+        camposInvalidos.push("Fecha entrega cliente");
+      }
+      if (updatedData.Entrega_enviada_por_correo === undefined) {
+        camposInvalidos.push("Entrega enviada por correo");
+      }
+      if (updatedData.Name === "" || updatedData.Name === null) {
+        camposInvalidos.push("Nº de entrega");
+      }
+
+      if (
+        updatedData.Entrega_Gestor === "" ||
+        updatedData.Entrega_Gestor === null
+      ) {
+        camposInvalidos.push("Nº de entrega gestor");
+      }
+
+      if (updatedData.No_procesada === true) {
+        if (
+          Array.isArray(updatedData.Motivo_no_procesada) &&
+          updatedData.Motivo_no_procesada.length === 0
+        ) {
+          camposInvalidos.push("Motivo no procesada");
+        }
+      }
+
+      if (updatedData.Estado === "" || updatedData.Estado === null) {
+        camposInvalidos.push("Estado");
+      }
+
+      // Mostrar el error si hay campos inválidos
+      if (camposInvalidos.length > 0) {
+        await Swal.fire({
+          icon: "error",
+          title: `Falta completar: ${camposInvalidos.join(", ")}`,
+          // text: camposInvalidos.join("\n"),
+        });
+        throw new Error(camposInvalidos.join("\n"));
+      }
+    }
     try {
       const result = await updateRecord(updatedData);
 
@@ -335,11 +536,17 @@ const Home = ({ datos, registerID }) => {
       throw error;
     }
   };
+  const ejecutarFuncion = async () => {
+    setRealizarGuardado(!realizarGuardado);
+  };
+
   const saveAllChanges = async () => {
     try {
-      const updatePromises = formSets.map((recordData, index) =>
-        updateRecordInCRM(index, recordData)
-      );
+      await ejecutarFuncion(); // Llama al evento del hijo
+
+      const updatePromises = formSets.map((recordData, index) => {
+        return updateRecordInCRM(index, recordData);
+      });
 
       const results = await Promise.all(updatePromises);
 
@@ -349,7 +556,6 @@ const Home = ({ datos, registerID }) => {
         results.forEach((result, index) => {
           newFormSets[index] = { ...newFormSets[index], ...result };
         });
-
         return newFormSets;
       });
 
@@ -365,27 +571,65 @@ const Home = ({ datos, registerID }) => {
       console.error("Error al guardar los cambios:", error);
       Swal.fire({
         icon: "error",
-        title: "Error al guardar los cambios",
+        title: "Faltan campos de completar",
         text: "Por favor, inténtalo de nuevo más tarde",
       });
     }
   };
-  function formatDate(dateString) {
-    const fecha = new Date(dateString);
-    const day = fecha.getDate();
-    const month = fecha.getMonth() + 1;
-    const year = fecha.getFullYear();
+  const saveAllChangesWhithOutClose = async () => {
+    try {
+      const updatePromises = formSets.map((recordData, index) =>
+        updateRecordInCRM(index, recordData)
+      );
 
-    // Puedes ajustar el formato según tus preferencias
-    return `${day}/${month}/${year}`;
-  }
+      const results = await Promise.all(updatePromises);
+
+      // Actualizar el estado con los resultados
+      setFormSets((prevFormSets) => {
+        const newFormSets = [...prevFormSets];
+        results.forEach((result, index) => {
+          newFormSets[index] = { ...newFormSets[index], ...result };
+        });
+        setModifiedIndexes([]);
+
+        return newFormSets;
+      });
+
+      Swal.fire({
+        icon: "success",
+        title: "Cambios guardados",
+        showConfirmButton: false,
+        timer: 2000,
+      });
+
+      // window.ZOHO.CRM.UI.Popup.closeReload().then(function (data) {});
+    } catch (error) {
+      console.error("Error al guardar los cambios:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Faltan campos de completar",
+        text: "Por favor, inténtalo de nuevo más tarde",
+      });
+    }
+  };
   const guardarYavanzar = async () => {
     try {
+      await ejecutarFuncion(); // Llama al evento del hijo
       // Crea un array de promesas para todas las actualizaciones
       const updatePromises = formSets.map((recordData, index) =>
         updateRecordInCRM(index, recordData)
       );
-      await Promise.all(updatePromises);
+      const results = await Promise.all(updatePromises);
+
+      // Actualizar el estado con los resultados
+      setFormSets((prevFormSets) => {
+        const newFormSets = [...prevFormSets];
+        results.forEach((result, index) => {
+          newFormSets[index] = { ...newFormSets[index], ...result };
+        });
+
+        return newFormSets;
+      });
 
       Swal.fire({
         icon: "success",
@@ -394,7 +638,7 @@ const Home = ({ datos, registerID }) => {
         timer: 2000,
       });
 
-      window.ZOHO.CRM.BLUEPRINT.proceed();
+      window.ZOHO.CRM.BLUEPRINT.();
     } catch (error) {
       console.error("Error al guardar los cambios:", error);
 
@@ -409,12 +653,12 @@ const Home = ({ datos, registerID }) => {
     if (hasUnsavedChanges()) {
       Swal.fire({
         title: "¿Estás seguro?",
-        text: "Hay cambios sin guardar. ¿Deseas cerrar de todos modos?",
+        text: "Está seguro que quiere descartar los cambios? ",
         icon: "warning",
         showCancelButton: true,
         confirmButtonColor: "#3085d6",
         cancelButtonColor: "#d33",
-        confirmButtonText: "Sí, cerrar",
+        confirmButtonText: "Confirmar",
         cancelButtonText: "Cancelar",
       }).then((result) => {
         if (result.isConfirmed) {
@@ -425,21 +669,302 @@ const Home = ({ datos, registerID }) => {
       closeWidget();
     }
   };
-  const closeWidget = () => {
-    window.ZOHO.CRM.UI.Popup.close().then(function (data) {});
+  const handleOpen = () => {
+    setDropOpen(!dropOpen);
   };
-  function truncateText(text, maxLength) {
-    if (text.length > maxLength) {
-      return text.slice(0, maxLength) + "...";
+  const handleCheckboxChange = (formId, displayValue) => {
+    setSelectedMotivos((prevState) => {
+      // Create a copy of the previous state for the specific formId
+      const currentFormMotivos = prevState[formId] || {};
+
+      // Toggle the checked state
+      const newValue = !currentFormMotivos[displayValue];
+
+      // If the value is being checked, add it to the object
+      // If the value is being unchecked, remove it from the object
+      const updatedFormMotivos = newValue
+        ? { ...currentFormMotivos, [displayValue]: true }
+        : Object.keys(currentFormMotivos)
+            .filter((key) => key !== displayValue)
+            .reduce((acc, key) => {
+              acc[key] = currentFormMotivos[key];
+              return acc;
+            }, {});
+
+      return {
+        ...prevState,
+        [formId]: updatedFormMotivos,
+      };
+    });
+  };
+  const handleFieldChange = async (index, fieldName, value) => {
+    // Para fecha reagendada, validar que no sea anterior a fecha profesional
+    if (fieldName === "Fecha_reagendada") {
+      const fechaProfesional = formSets[index].Fecha_entrega_profesional;
+
+      // Permitir valor nulo o vacío
+      if (!value || value === "") {
+        setFormSets((prevFormSets) => {
+          const newFormSets = [...prevFormSets];
+          newFormSets[index] = {
+            ...newFormSets[index],
+            [fieldName]: null, // o "" dependiendo de cómo prefieras manejar los valores vacíos
+            Editado_por_widget: true,
+          };
+          if (!modifiedIndexes.includes(index)) {
+            setModifiedIndexes((prev) => [...prev, index]);
+          }
+          return newFormSets;
+        });
+        return;
+      }
+
+      // Solo validar si hay una fecha profesional y la fecha reagendada no es nula
+      if (fechaProfesional && value < fechaProfesional) {
+        alert(
+          "La fecha reagendada no puede ser anterior a la fecha profesional"
+        );
+        return;
+      }
     }
-    return text;
-  }
+    if (fieldName === "Fecha_entrega_profesional") {
+      let fechaString = value.toString();
+      var req_data = {
+        arguments: JSON.stringify({
+          profesional: fechaString,
+        }),
+      };
+      try {
+        const data = await window.ZOHO.CRM.FUNCTIONS.execute(
+          "FechaClienteWidget",
+          req_data
+        );
+        setFormSets((prevFormSets) => {
+          const newFormSets = [...prevFormSets];
+          newFormSets[index] = {
+            ...newFormSets[index],
+            [fieldName]: value,
+            Fecha_entrega_cliente: data.details.output,
+            Editado_por_widget: true,
+          };
+          if (!modifiedIndexes.includes(index)) {
+            setModifiedIndexes((prev) => [...prev, index]);
+          }
+          console.log("newFormSets", newFormSets);
+          return newFormSets;
+        });
+      } catch (error) {
+        console.log(error);
+      }
+    } else if (fieldName === "Estado") {
+      setFormSets((prevFormSets) => {
+        const newFormSets = [...prevFormSets];
+        newFormSets[index] = {
+          ...newFormSets[index],
+          [fieldName]: value,
+          Editado_por_widget: true,
+          // Set Entrega_enviada_por_correo based on Estado value
+          Entrega_enviada_por_correo: value === "Entregada",
+        };
+        if (!modifiedIndexes.includes(index)) {
+          setModifiedIndexes((prev) => [...prev, index]);
+        }
+        return newFormSets;
+      });
+    } else {
+      setFormSets((prevFormSets) => {
+        const newFormSets = [...prevFormSets];
+        newFormSets[index] = {
+          ...newFormSets[index],
+          [fieldName]: value,
+          Editado_por_widget: true,
+        };
+        if (!modifiedIndexes.includes(index)) {
+          setModifiedIndexes((prev) => [...prev, index]);
+        }
+        return newFormSets;
+      });
+    }
+  };
+  const handleRecord = async (formData) => {
+    const newRecord = { ...formData };
+
+    insertRecord(newRecord);
+
+    await cargarRegistros()
+      .then((result) => {
+        setFormSets((prevFormSets) => [...prevFormSets, newRecord]);
+        // togglePopup();
+      })
+      .catch((error) => {
+        console.error("Error al agregar el registro:", error);
+      });
+  };
+  const handleRecord2 = (formData) => {
+    const newRecord = { ...formData };
+
+    insertRecord2(newRecord);
+    cargarRegistros()
+      .then((result) => {
+        setFormSets((prevFormSets) => [...prevFormSets, newRecord]);
+      })
+      .catch((error) => {
+        console.error("Error al agregar el registro:", error);
+      });
+  };
+  const handleEstadoElegido = (estado, index) => {
+    if (estado === "Entregada") {
+      // togglePopEnvio(index);
+      toggleCard2(index);
+      setEnviarEntrega(true);
+    }
+  };
+  const handleIa = async (id) => {
+    // Mostrar SweetAlert de carga
+    const loadingAlert = Swal.fire({
+      title: "Procesando",
+      text: "Por favor, espere...",
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    const req_data = {
+      arguments: JSON.stringify({
+        entrega_id: id,
+      }),
+    };
+
+    try {
+      const response = await window.ZOHO.CRM.FUNCTIONS.execute(
+        "turnitingetviewer",
+        req_data
+      );
+
+      // Extraer 'output' de los detalles
+      const output = response?.details?.output;
+
+      // Cerrar el SweetAlert de carga
+      loadingAlert.close();
+
+      if (!output || output === "") {
+        // Mostrar alerta de advertencia
+        Swal.fire({
+          icon: "warning",
+          title: "Atención",
+          text: "No se puede acceder al reporte.",
+          confirmButtonText: "Aceptar",
+        });
+      } else if (isValidUrl(output)) {
+        // Mostrar alerta de éxito antes de redirigir
+        await Swal.fire({
+          icon: "success",
+          title: "Éxito",
+          text: "Redirigiendo al reporte...",
+          showConfirmButton: false,
+          timer: 1500,
+        });
+
+        // Abrir URL en nueva pestaña
+        window.open(output, "_blank");
+      }
+    } catch (error) {
+      console.error("Error al ejecutar la función:", error);
+
+      // Cerrar el SweetAlert de carga
+      loadingAlert.close();
+
+      // Mostrar alerta de error
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Ocurrió un problema al procesar la solicitud.",
+        confirmButtonText: "Aceptar",
+      });
+    }
+  };
   const handleDarkMode = (prop) => {
     setDark(prop);
     localStorage.setItem("darkMode", JSON.stringify(prop));
   };
+  const getFields = () => {
+    return new Promise(function (resolve, reject) {
+      window.ZOHO.CRM.META.getFields({ Entity: "Entregas" })
+        .then(function (response) {
+          setFields(response.fields);
+        })
+        .catch(function (error) {
+          reject(error);
+        });
+    });
+  };
+  const especificRecords = async () => {
+    console.log("especific");
+
+    try {
+      const response = await getRelatedRecords(
+        "Coordinacion",
+        registerID,
+        "Entregas_asociadas"
+      );
+
+      if (!response?.register?.length) return;
+
+      setFormSets((prevState) => {
+        return prevState.map((item) => {
+          const updatedRecord = response.register.find((r) => r.id === item.id);
+          if (updatedRecord) {
+            return {
+              ...item,
+              // Solo actualizar campos específicos
+              // Entrega_enviada_por_correo:
+              //   updatedRecord.Entrega_enviada_por_correo,
+              Workdrive_entrega: updatedRecord.Workdrive_entrega,
+              // Otros campos que necesites actualizar
+            };
+          }
+          return item;
+        });
+      });
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
   const hasUnsavedChanges = () => {
     return modifiedIndexes.length > 0;
+  };
+
+  const motivo_no_procesada = getFieldValues(fields, "Motivo_no_procesada");
+
+  const STATUS_OPTIONS = {
+    CO: [
+      { value: "Entregada", label: "Entregada", color: "#25b52a" },
+      { value: "Paralizada", label: "Paralizada", color: "#f5c72f" },
+      { value: "Retrasada", label: "Retrasada", color: "#eb4d4d" },
+      { value: "Correcciones", label: "Correcciones", color: "#168aef" },
+      {
+        value: "Entrega asignada",
+        label: "Entrega asignada",
+        color: "#f8e199",
+      },
+      { value: "Caida", label: "Caida", color: "#9a2e47" },
+      { value: "Incompleta", label: "Incompleta", color: "#c9ba46" },
+    ],
+    DEFAULT: [
+      { value: "Pendiente", label: "Pendiente", color: "#dbdbdb" },
+      { value: "Entregada", label: "Entregada", color: "#25b52a" },
+      { value: "Paralizada", label: "Paralizada", color: "#f5c72f" },
+      { value: "Retrasada", label: "Retrasada", color: "#eb4d4d" },
+      {
+        value: "Entrega asignada",
+        label: "Entrega asignada",
+        color: "#f8e199",
+      },
+      { value: "Caida", label: "Caida", color: "#9a2e47" },
+      { value: "Incompleta", label: "Incompleta", color: "#c9ba46" },
+    ],
   };
 
   return (
@@ -447,236 +972,39 @@ const Home = ({ datos, registerID }) => {
       <div className="w-full ">
         {datos && datos.Name ? (
           <>
-            <div
-              className={`flex h-[40px] ${
-                dark ? "bg-[#222631]" : "bg-[#f0f0f8]"
-              } justify-between items-center pr-10 pl-5`}
-            >
-              <div className="flex h-[125%] gap-8 text-xs items-center ">
-                <p
-                  className={`text-xl font-bold ${
-                    dark ? "text-white" : "text-zinc-800"
-                  }  drop-shadow-xl`}
-                >
-                  {datos.Name}
-                </p>
-                <PopCalendario
-                  dark={dark}
-                  datos={datos}
-                  registerID={registerID}
-                />
-              </div>
-              <div className=" h-[50px] flex gap-4  items-center justify-center ">
-                <button
-                  className="flex items-center gap-2 w-28 h-8 border-2 text-xs py-1 px-2 rounded-md bg-[#f73463] border-none text-white font-semibold hover:bg-red-600 hover:text-white"
-                  onClick={close}
-                >
-                  <IoCloseCircleOutline size={20} />
-                  Cancelar
-                </button>
-                <button
-                  className={`flex items-center gap-2 border-none h-8 border-2 text-xs py-1 px-2 rounded-md ${
-                    dark === true ? "bg-[#ff862e]" : "bg-[#4c41ec]"
-                  }  text-white font-semibold hover:bg-violet-600 hover:text-white`}
-                  onClick={saveAllChanges}
-                >
-                  <FaRegClock size={14} />
-                  Guardar y cerrar
-                </button>
-
-                <button
-                  className="flex items-center gap-2  h-8 border-2 text-xs py-1 px-2 rounded-md bg-[#43d1a7] border-none text-white font-semibold hover:bg-green-600 hover:text-white"
-                  onClick={() => guardarYavanzar()}
-                >
-                  <MdCheck size={16} />
-                  Guardar y avanzar
-                </button>
-              </div>
-            </div>
-            <div
-              className={` segunda-barra flex  h-[40px] ${
-                dark ? "bg-[#2f374c]" : "bg-[#e5e5e6]"
-              } ${
-                dark ? "text-[#ffb22e]" : "text-[#4c41ec]"
-              }  justify-start items-center pr-6 pl-2 shadow-2xl relative `}
-            >
-              <div className="flex w-[18%] text-center item-center  ">
-                <p
-                  className={`${
-                    dark ? "text-[#dddee0]" : "text-zinc-800"
-                  }  text-[14px] font-extrabold mr-2 `}
-                >
-                  Fecha final de entrega:
-                </p>
-                <p className="font-semibold  text-[14px] mr-6 ">
-                  {datos.Fecha_Final_de_Entrega
-                    ? formatDate(datos.Fecha_Final_de_Entrega)
-                    : "No Tiene"}
-                </p>
-              </div>
-              <div className="flex w-[41%] text-center items-center ">
-                <p
-                  className={`${
-                    dark ? "text-[#dddee0]" : "text-zinc-800"
-                  }  text-[14px] font-extrabold `}
-                >
-                  Fechas especificas:
-                </p>
-                <p className="text-[14px] ml-2 font-semibold mr-2 ">
-                  {datos && datos.Cu_les_son_las_fechas_espec_ficas
-                    ? truncateText(datos.Cu_les_son_las_fechas_espec_ficas, 60)
-                    : "no tiene"}
-                </p>
-                <Tooltip
-                  title={datos && datos.Cu_les_son_las_fechas_espec_ficas}
-                />
-              </div>
-              <div className="flex w-[41%] text-center items-center">
-                <p
-                  className={`${
-                    dark ? "text-[#dddee0]" : "text-zinc-800"
-                  }  text-[14px] font-extrabold `}
-                >
-                  Tema del proyecto:
-                </p>
-                <p className="text-[14px]  ml-2 font-semibold mr-2 ">
-                  {datos.Tema_del_Proyecto
-                    ? truncateText(datos.Tema_del_Proyecto, 90)
-                    : "no tiene"}
-                </p>
-                <Tooltip title={datos.Tema_del_Proyecto} />
-              </div>
-            </div>
+            {/*barra navegacion superior*/}
+            <BarraNavegacionSuperior
+              dark={dark}
+              datos={datos}
+              registerID={registerID}
+              close={close}
+              saveAllChanges={saveAllChanges}
+              guardarYavanzar={guardarYavanzar}
+            />
+            {/*segunda barra navegacion superior*/}
+            <SegundaBarraDeNavegacion
+              datos={datos}
+              dark={dark}
+              truncateText={truncateText}
+              formatDate={formatDate}
+            />
           </>
         ) : null}
       </div>
       <div className="flex h-[calc(100vh-80px)]  relative ">
         {datos ? (
-          <div
-            className={`flex flex-col w-[200px] h-[100%] ${
-              dark ? "bg-[#2f374c]" : "bg-[#e5e5e6]"
-            } items-center mb-2 ${
-              dark ? "text-[#ffb22e]" : "text-[#4c41ec]"
-            }  `}
-          >
-            <div className="flex text-center items-center  w-full mt-4 px-4 justify-between ">
-              <p
-                className={`${
-                  dark ? "text-[#dddee0]" : "text-zinc-800"
-                }  text-[14px] font-extrabold `}
-              >
-                Total de paginas:
-              </p>
-              <p className="font-semibold  text-[14px] ml-1">
-                {datos.Numero_de_Paginas ? datos.Numero_de_Paginas : "No Tiene"}
-              </p>
-            </div>
-            <div className="flex text-center items-center  w-full mt-4 px-4 justify-between ">
-              <p
-                className={`${
-                  dark ? "text-[#dddee0]" : "text-zinc-800"
-                }  text-[14px] font-extrabold `}
-              >
-                Paginas nuevas:
-              </p>
-              <p className="font-semibold  text-[14px] ml-1">
-                {datos.Cuantas_pagina_son_nuevas
-                  ? datos.Cuantas_pagina_son_nuevas
-                  : "No Tiene"}
-              </p>
-            </div>
-            <div className="flex text-center items-center  w-full mt-4 px-4 justify-between ">
-              <p
-                className={`${
-                  dark ? "text-[#dddee0]" : "text-zinc-800"
-                }  text-[14px] font-extrabold `}
-              >
-                Pag. correcciones:
-              </p>
-              <p className="font-semibold  text-[14px] ml-1">
-                {datos.Cuantas_paginas_son_de_correcciones
-                  ? datos.Cuantas_paginas_son_de_correcciones
-                  : "No Tiene"}
-              </p>
-            </div>
-            <div className="flex text-center items-center  w-full mt-4 px-4 justify-between ">
-              <p
-                className={`${
-                  dark ? "text-[#dddee0]" : "text-zinc-800"
-                }  text-[14px] font-extrabold `}
-              >
-                Pag. 1er entrega:
-              </p>
-              <p className="font-semibold  text-[14px] ml-1">
-                {datos.Pagina_Primera_Entrega
-                  ? datos.Pagina_Primera_Entrega
-                  : ""}
-              </p>
-            </div>
-            <div className="flex text-center items-center  w-full mt-4 px-4 justify-between ">
-              <p
-                className={`${
-                  dark ? "text-[#dddee0]" : "text-zinc-800"
-                }  text-[14px] font-extrabold `}
-              >
-                C. nuevas pautas
-              </p>
-              <Tooltip
-                pos={"-top-20 right-42"}
-                title={datos && datos.Comentario_cerrado_nuevas_pautas}
-              />
-            </div>
-            <div className="flex text-center items-center  w-full mt-4 px-4 justify-between ">
-              <p
-                className={`${
-                  dark ? "text-[#dddee0]" : "text-zinc-800"
-                }  text-[14px] font-extrabold `}
-              >
-                C. cliente
-              </p>
-              <Tooltip
-                pos={"top-5 right-30"}
-                title={datos && datos.Comentario_del_cliente}
-              />
-            </div>
-            <div className="flex flex-col text-start   w-full mt-4 px-4 justify-between ">
-              <div
-                className={`flex gap-2 items-center ${
-                  dark ? "text-white" : "text-zinc-800"
-                } `}
-              >
-                <BsFilterSquare /> Filtro:
-              </div>
-              <select
-                className={`block mt-2  border-none   border-gray-500 rounded-md shadow-sm p-1  ${
-                  dark ? "bg-[#222631]" : "bg-[#f0f0f8]"
-                } text-[14px]  sm:text-sm ${
-                  dark ? "text-white" : "text-zinc-800"
-                }`}
-                name="filter"
-                id="filter"
-                onChange={(e) => setFilter(e.target.value)}
-              >
-                <option value="Todas">Todas</option>
-                <option value="Entrega Numerada">Entrega Numerada</option>
-                <option value="Entrega Correcciones">
-                  Entrega Correcciones
-                </option>
-              </select>
-            </div>
-
-            <div className="flex absolute bottom-12">
-              <div className="flex flex-col gap-2 items-center">
-                <button
-                  className="w-[160px] h-8 border-2 text-xs py-1 px-2 rounded-md border-none bg-[#f73463] text-white font-semibold hover:bg-red-500  hover:text-white"
-                  onClick={() => delAllRecords()}
-                >
-                  Eliminar TODAS
-                </button>
-              </div>
-            </div>
-          </div>
+          <BarraNavegacionLateral
+            datos={datos}
+            registerID={registerID}
+            dark={dark}
+            setFilter={setFilter}
+            delAllRecords={delAllRecords}
+            realizarGuardado={realizarGuardado}
+          />
         ) : null}
+
+        {/*tarjetas*/}
+
         <div className="w-[100%] h-[100%]   overflow-hidden  flex-col    ">
           <div
             className={` w-full h-full flex justify-start items-start  ${
@@ -686,9 +1014,9 @@ const Home = ({ datos, registerID }) => {
             <div className="flex w-full justify-start mb-[60px] ">
               <div className="cards gap-2 flex  justify-start flex-wrap ">
                 {filtredEntys.map((form, index) => (
-                  <div key={form.id}>
+                  <div key={index}>
                     <div
-                      className={`card ${
+                      className={`card relative overflow-hidden ${
                         dark
                           ? "shadow-[0px_0px_10px_rgba(234,234,234,0.5)]"
                           : "shadow-[0px_0px_10px_rgba(0,0,0,0.5)]"
@@ -767,83 +1095,31 @@ const Home = ({ datos, registerID }) => {
                         >
                           Estado
                         </label>
-                        <DropCustom
-                          dark={dark}
-                          options={
-                            form.Name === "CO"
-                              ? [
-                                  { value: "None", label: "-None-" },
-                                  {
-                                    value: "Entregada",
-                                    label: "Entregada",
-                                    color: "#25b52a",
-                                  },
-                                  {
-                                    value: "Paralizada",
-                                    label: "Paralizada",
-                                    color: "#f5c72f",
-                                  },
-                                  {
-                                    value: "Retrasada",
-                                    label: "Retrasada",
-                                    color: "#eb4d4d",
-                                  },
-                                  {
-                                    value: "Correcciones",
-                                    label: "Correcciones",
-                                    color: "#168aef",
-                                  },
-                                  {
-                                    value: "Entrega asignada",
-                                    label: "Entrega asignada",
-                                    color: "#f8e199",
-                                  },
-                                  {
-                                    value: "Caida",
-                                    label: "Caida",
-                                    color: "#9a2e47",
-                                  },
-                                ]
-                              : [
-                                  { value: "None", label: "-None-" },
-                                  {
-                                    value: "Pendiente",
-                                    label: "Pendiente",
-                                    color: "#dbdbdb",
-                                  },
-                                  {
-                                    value: "Entregada",
-                                    label: "Entregada",
-                                    color: "#25b52a",
-                                  },
-                                  {
-                                    value: "Paralizada",
-                                    label: "Paralizada",
-                                    color: "#f5c72f",
-                                  },
-                                  {
-                                    value: "Retrasada",
-                                    label: "Retrasada",
-                                    color: "#eb4d4d",
-                                  },
-                                  {
-                                    value: "Entrega asignada",
-                                    label: "Entrega asignada",
-                                    color: "#f8e199",
-                                  },
-                                  {
-                                    value: "Caida",
-                                    label: "Caida",
-                                    color: "#9a2e47",
-                                  },
-                                ]
-                          }
-                          value={form.Estado}
-                          onChange={(value) =>
-                            handleFieldChange(index, "Estado", value)
-                          }
-                          className="block border-2 w-[125px]  text-center  border-none p-1 rounded-md shadow-sm bg-[#f0f0f8] dark:bg-[#222631] text-white text-[14px] focus:ring-indigo-500 focus:border-indigo-500"
-                        />
+                        <div className="flex items-center gap-2">
+                          {form.Workdrive_entrega !== undefined &&
+                          form.Workdrive_entrega !== null &&
+                          formSets[index].Estado === "Entregada" ? (
+                            <MdKeyboardArrowDown
+                              onClick={() => toggleCard2(form.id)}
+                            />
+                          ) : null}
+                          <DropCustom
+                            index={index}
+                            id={form.id}
+                            handleEstadoElegido={handleEstadoElegido}
+                            dark={dark}
+                            options={
+                              STATUS_OPTIONS[
+                                form.Name === "CO" ? "CO" : "DEFAULT"
+                              ]
+                            }
+                            value={form.Estado}
+                            onChange={(value) =>
+                              handleFieldChange(index, "Estado", value)
+                            }
+                            className="block border-2 w-[125px] text-center border-none p-1 rounded-md shadow-sm bg-[#f0f0f8] dark:bg-[#222631] text-white text-[14px] focus:ring-indigo-500 focus:border-indigo-500"
+                          />
+                        </div>
                       </div>
                       {form.Name && form.Name !== "CO" ? (
                         <div className=" flex items-center justify-between">
@@ -887,6 +1163,7 @@ const Home = ({ datos, registerID }) => {
                             type="date"
                             id={`Fecha_entrega_profesional_${index}`}
                             name={`Fecha_entrega_profesional_${index}`}
+                            value={form.Fecha_entrega_profesional || ""}
                             onChange={(e) => {
                               handleFieldChange(
                                 index,
@@ -894,7 +1171,6 @@ const Home = ({ datos, registerID }) => {
                                 e.target.value
                               );
                             }}
-                            value={form.Fecha_entrega_profesional || ""}
                             className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
                               dark ? "bg-[#222631]" : "bg-white"
                             } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
@@ -941,7 +1217,7 @@ const Home = ({ datos, registerID }) => {
                           type="date"
                           id={`Fecha_reagendada_${index}`}
                           name={`Fecha_reagendada_${index}`}
-                          readOnly
+                          min={form.Fecha_entrega_profesional || ""}
                           onChange={(e) =>
                             handleFieldChange(
                               index,
@@ -981,7 +1257,9 @@ const Home = ({ datos, registerID }) => {
                         <div className="  flex items-center justify-between ">
                           <label
                             htmlFor="Correcciones"
-                            className="block text- font-medium text-white text-[16px] "
+                            className={`block  font-medium ${
+                              dark ? "text-white text" : "text-zinc-800"
+                            }  text-[16px] mr-4   `}
                           >
                             Correcciones
                           </label>
@@ -991,7 +1269,7 @@ const Home = ({ datos, registerID }) => {
                             name="Correcciones"
                             value={form.Correcciones}
                             className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
-                              dark ? "bg-[#222631]" : "bg-[#f0f0f8]"
+                              dark ? "bg-[#222631]" : "bg-white"
                             } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
                             onChange={(e) =>
                               handleFieldChange(
@@ -1025,6 +1303,7 @@ const Home = ({ datos, registerID }) => {
                           id={`Comentario_${index}`}
                           name={`Comentario_${index}`}
                           value={form.Comentario || ""}
+                          maxLength={1900} // Limita a 1900 caracteres
                           onChange={(e) =>
                             handleFieldChange(
                               index,
@@ -1037,8 +1316,7 @@ const Home = ({ datos, registerID }) => {
                           } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
                         />
                       </div>
-
-                      <div className="flex justify-between   ">
+                      <div className="flex justify-between h-[50px]  items-center pr-8  ">
                         <div className=" flex items-center ">
                           <label
                             htmlFor="Urgente"
@@ -1048,7 +1326,7 @@ const Home = ({ datos, registerID }) => {
                           >
                             Urgente?
                           </label>
-                          <div className="flex justify-center items-center">
+                          <div className="flex  justify-center items-center ">
                             <input
                               type="checkbox"
                               id="Urgente"
@@ -1065,27 +1343,272 @@ const Home = ({ datos, registerID }) => {
                             />
                           </div>
                         </div>
+
+                        {form.Workdrive_entrega !== undefined &&
+                        form.Workdrive_entrega !== null ? (
+                          <img
+                            // onClick={() => togglePoRechazo(index)}
+                            onClick={() => toggleCard(form.id)}
+                            src={rechazo}
+                            alt=""
+                            className="h-[50%] cursor-pointer"
+                          />
+                        ) : null}
+                        {form.Workdrive_entrega !== undefined &&
+                        form.Workdrive_entrega !== null ? (
+                          <div
+                            className={`logoIa h-full w-auto flex items-center justify-center flex-col relative ${
+                              form.Fue_procesado_correctamente_por_turnitin ===
+                                "NO" || !form.submission_id
+                                ? "opacity-50"
+                                : ""
+                            }`}
+                          >
+                            <img
+                              onClick={
+                                form.Fue_procesado_correctamente_por_turnitin ===
+                                  "NO" || !form.submission_id
+                                  ? null
+                                  : () => handleIa(form.id)
+                              }
+                              src={ia}
+                              alt=""
+                              className="h-[50%] cursor-pointer"
+                            />
+                            <span className="porcentaje text-center absolute top-[-20px] p-[4px] rounded-lg whitespace-nowrap bg-zinc-800 text-white opacity-0">
+                              {form.Porcentaje_plagio
+                                ? `${form.Porcentaje_plagio} %`
+                                : ` ${
+                                    form.Fue_procesado_correctamente_por_turnitin ===
+                                      "NO" || !form.submission_id
+                                      ? "No disponible"
+                                      : "Consultar % IA"
+                                  } `}
+                            </span>
+                          </div>
+                        ) : null}
+                        {form.Workdrive_entrega !== undefined &&
+                        form.Workdrive_entrega !== null ? (
+                          <img
+                            onClick={() =>
+                              redireccionWorkdrive(form.Workdrive_entrega)
+                            }
+                            src={carpeta}
+                            alt=""
+                            className="h-[45%] cursor-pointer"
+                          />
+                        ) : null}
                       </div>
+                      <div
+                        className={`card2 absolute flex justify-start left-0 ${
+                          expandedCardId === form.id
+                            ? "top-[0px]"
+                            : "top-[700px]"
+                        }  ${dark ? "bg-[#2f374c]" : "bg-[#e5e5e6]"} ${
+                          modifiedIndexes.includes(index) ? "modif pulse" : ""
+                        }`}
+                      >
+                        <div
+                          onClick={() => toggleCard()}
+                          className="cursor-pointer"
+                        >
+                          <MdKeyboardArrowDown />
+                        </div>
+                        <div className="w-full flex-grow p-0  rounded-xl flex justify-start items-center flex-col relative aqui">
+                          <p className="text-bold text-center font-medium mt-4">
+                            Aqui puedes marcar la entrega como no procesada
+                          </p>
+                          <div className="flex items-center  gap-4 mt-4">
+                            <label htmlFor="No_procesada" className="">
+                              Entrega No Procesada
+                            </label>
+                            <input
+                              type="checkbox"
+                              name="No_procesada"
+                              id="No_procesada"
+                              checked={form.No_procesada}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  index,
+                                  "No_procesada",
+                                  e.target.checked
+                                )
+                              }
+                            />
+                          </div>
+
+                          <label className="mt-8 mb-2">
+                            Motivo no procesada
+                          </label>
+                          <div>
+                            <div
+                              onClick={() => handleOpen()}
+                              className="w-full h-[40px] bg-white rounded-lg shadow-xl flex items-center px-4 justify-between relative cursor-pointer"
+                            >
+                              Selecciona el motivo
+                              {dropOpen ? (
+                                <MdKeyboardArrowUp />
+                              ) : (
+                                <MdKeyboardArrowDown />
+                              )}
+                            </div>
+                            {dropOpen ? (
+                              <div
+                                key={form.id}
+                                className="flex flex-col w-full bg-white px-4 py-2 rounded-lg shadow-xl mt-2 relative h-[200px] overflow-auto"
+                              >
+                                {motivo_no_procesada.map((item) => (
+                                  <div
+                                    key={item.display_value}
+                                    className="flex items-center"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      id={`motivo-${form.id}-${item.display_value}`}
+                                      className="mr-2"
+                                      checked={
+                                        selectedMotivos[form.id]?.[
+                                          item.display_value
+                                        ] || false
+                                      }
+                                      onChange={() =>
+                                        handleCheckboxChange(
+                                          form.id,
+                                          item.display_value
+                                        )
+                                      }
+                                    />
+                                    <label
+                                      htmlFor={`motivo-${form.id}-${item.display_value}`}
+                                    >
+                                      {item.display_value}
+                                    </label>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <label htmlFor="comentarioTextarea" className="mt-2">
+                            Comentario no procesada
+                          </label>
+                          <textarea
+                            id="comentarioTextarea"
+                            onChange={(e) =>
+                              handleFieldChange(
+                                index,
+                                "Comentario_no_procesada_por_Coordinacion",
+                                e.target.value
+                              )
+                            }
+                            value={
+                              form.Comentario_no_procesada_por_Coordinacion ||
+                              ""
+                            }
+                            className="w-full h-[100px] rounded-lg mt-2 shadow-lg p-2"
+                            maxLength={1900} // Limita a 1900 caracteres
+                          ></textarea>
+                        </div>
+                      </div>
+
+                      {form.Workdrive_entrega !== undefined &&
+                      form.Workdrive_entrega !== null ? (
+                        <div
+                          tabIndex="-1"
+                          aria-hidden="true"
+                          className={`card2 absolute flex justify-start left-0 ${
+                            expandedCardId2 === form.id
+                              ? "top-[0px]"
+                              : "hidden top-[700px]"
+                          }  ${dark ? "bg-[#2f374c]" : "bg-[#e5e5e6]"} ${
+                            modifiedIndexes.includes(index) ? "modif pulse" : ""
+                          }`}
+                        >
+                          <div
+                            onClick={() => toggleCard2()}
+                            className="cursor-pointer mb-4"
+                          >
+                            <MdKeyboardArrowDown />
+                          </div>
+
+                          <div className="w-full p-0 rounded-xl flex justify-center items-center flex-col relative acabas">
+                            <p className="text-[20px] w-full text-center font-medium">
+                              Acabas de marcar la casilla como entregada.
+                            </p>
+                            <div className="flex items-center gap-4 mt-8">
+                              <label htmlFor="Entrega_enviada_por_correo">
+                                Enviar entrega por correo
+                              </label>
+                              <input
+                                type="checkbox"
+                                id="Entrega_enviada_por_correo"
+                                checked={form.Entrega_enviada_por_correo}
+                                onChange={(e) => {
+                                  // setEnviarEntrega(e.target.checked);
+                                  handleFieldChange(
+                                    index,
+                                    "Entrega_enviada_por_correo",
+                                    e.target.checked
+                                  );
+                                }}
+                              />
+                            </div>
+                            <div className="flex flex-col items-center gap-4 mt-8">
+                              <label htmlFor="Comentarios_profesional">
+                                Comentario profesional
+                              </label>
+                              <textarea
+                                id="Comentarios_profesional"
+                                className="w-[300px] h-[100px] rounded-md"
+                                maxLength={1900} // Limita a 1900 caracteres
+                                onChange={(e) =>
+                                  handleFieldChange(
+                                    index,
+                                    "Comentarios_profesional",
+                                    e.target.value
+                                  )
+                                }
+                                value={form.Comentarios_profesional || ""}
+                              ></textarea>
+                              <p className="text-center font-semibold">
+                                Al guardar los cambios, su entrega será
+                                procesada{" "}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-
-          <div className="w-full h-[125px]"></div>
+          <div className="w-full h-[125px] "></div>
         </div>
+
+        {/*boton para abrir pops y cambiar color */}
+
         <div className="fixed top-[95px] right-6 ">
           <button
             className={` w-12  h-12 border-2 text-2xl shadow-xl  rounded-full ${
               dark ? "bg-[#ff862e]" : "bg-[#4c5af6]"
-            } border-none text-white font-semibold  `}
+            } border-none text-white font-semibold ${
+              dark ? "hover:bg-[#ff7b2e]" : "hover:bg-[#483edb]"
+            }  `}
             onClick={() => setEleccion(!eleccion)}
           >
             +
           </button>
           {eleccion ? (
-            <Eleccion togglePopup={togglePopup} togglePopupCo={togglePopupCo} />
+            <Eleccion
+              togglePopup={togglePopup}
+              togglePopupCo={togglePopupCo}
+              dark={dark}
+              hasUnsavedChanges={hasUnsavedChanges}
+              saveAllChangesWhithOutClose={saveAllChangesWhithOutClose}
+              setModifiedIndexes={setModifiedIndexes}
+            />
           ) : null}
         </div>
         <div
@@ -1105,6 +1628,8 @@ const Home = ({ datos, registerID }) => {
           <BsMoonStars />
         </div>
       </div>
+
+      {/*popUps*/}
 
       {showPopup && (
         <PopupForm
