@@ -4,7 +4,7 @@ import { LuCalendarSearch } from "react-icons/lu";
 const PopCalendario = ({ datos, registerID, dark }) => {
   const abrirC1 = () => {
     window.open(
-      `https://app.zonagestion.com/calendario?zoho=${datos.Profesional_Asignado.id}`,
+      `https://app.zonagestion.com/calendario?zoho=${registerID}`,
       "_blank"
     );
   };
@@ -19,7 +19,9 @@ const PopCalendario = ({ datos, registerID, dark }) => {
       <button
         className={`flex items-center gap-2 border-none h-8 border-2 text-xs py-1 px-2 rounded-md ${
           dark === true ? "bg-[#ff862e]" : "bg-[#4c41ec]"
-        }  text-white font-semibold hover:bg-violet-600 hover:text-white`}
+        }  text-white font-semibold ${
+          dark === true ? "hover:bg-[#ff7640]" : "hover:bg-[#3232b6]"
+        } hover:text-white`}
         onClick={abrirC1}
       >
         <LuCalendarSearch size={16} className=" cursor-pointer" />
@@ -28,7 +30,9 @@ const PopCalendario = ({ datos, registerID, dark }) => {
       <button
         className={`flex items-center gap-2 border-none h-8 border-2 text-xs py-1 px-2 rounded-md ${
           dark === true ? "bg-[#ff862e]" : "bg-[#4c41ec]"
-        }  text-white font-semibold hover:bg-violet-600 hover:text-white`}
+        }  text-white font-semibold ${
+          dark === true ? "hover:bg-[#ff7640]" : "hover:bg-[#3232b6]"
+        } hover:text-white`}
         onClick={abrirC2}
       >
         <LuCalendarSearch size={16} className=" cursor-pointer" />

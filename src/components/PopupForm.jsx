@@ -12,36 +12,43 @@ const PopupForm = ({
   formSets,
   records,
   dark,
+  estadosProduccion,
 }) => {
-  const tag = datos && datos.Tag ? datos.Tag[0].name : null;
+  const tag = datos && datos.Tag ? datos.Tag.map((tag) => tag.name) : [];
+  const comentario = tag.includes("Para traducir")
+    ? "PARA TRADUCIR"
+    : tag.includes("Traducir")
+    ? "TRADUCCION"
+    : "";
   const [commentEdited, setCommentEdited] = useState(false);
   const [registros, setRegistros] = useState([]);
   const [formData, setFormData] = useState({
     Name: "",
+    Fecha_reagendada_prod_interna: "",
+    Fecha_produccion_interna: "",
+    Estado_produccion_interna: "",
     Estado: "Pendiente",
     Coordinacion_asociada: registerID,
     Paginas_a_entregar: "",
     Fecha_entrega_profesional: "",
     Fecha_entrega_cliente: "",
     Fecha_reagendada: "",
-    Comentario:
-      tag === "Para traducir"
-        ? "PARA TRADUCIR"
-        : tag === "Traducir"
-        ? "TRADUCCION"
-        : "",
+    Comentario: comentario,
     Hora: "",
     // Correcciones: "",
     Urgente: false,
     Entreg_adelantado: false,
     Entrega_Gestor: "",
     Ocultar_entrega_gestor: "",
+    Creado_por_widget: false,
   });
+
   const [latestDates, setLatestDates] = useState({
     clientDate: null,
     professionalDate: null,
   });
-  const [isSubmitting, setIsSubmitting] = useState(false); // Inicia el estado de carga]
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getRecords = async () => {
     try {
@@ -52,9 +59,6 @@ const PopupForm = ({
       );
       const registros = response.register || [];
       setRegistros(registros);
-
-      const validFormSets = registros.filter((item) => item.Name !== "CO");
-
       return registros;
     } catch (error) {
       console.error(error);
@@ -71,15 +75,181 @@ const PopupForm = ({
     }
     return nextNumber.toString();
   };
+
   useEffect(() => {
-    if (formData.Fecha_entrega_profesional) {
-      const nextWorkingDay = getNextWorkingDay(
-        formData.Fecha_entrega_profesional,
-        2
+    function ajustarAFechaHabil(fecha) {
+      const diaSemana = fecha.getUTCDay();
+      if (diaSemana === 6) {
+        // Si es sábado, mover al lunes (2 días adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 3);
+      } else if (diaSemana === 0) {
+        // Si es domingo, mover al lunes (1 día adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 2);
+      } else if (diaSemana === 5) {
+        // Si es domingo, mover al lunes (1 día adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 4);
+      } else if (diaSemana === 1) {
+        // Si es domingo, mover al lunes (1 día adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 2);
+      } else if (diaSemana === 2) {
+        // Si es domingo, mover al lunes (1 día adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 2);
+      } else if (diaSemana === 3) {
+        // Si es domingo, mover al lunes (1 día adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 2);
+      } else if (diaSemana === 4) {
+        // Si es domingo, mover al lunes (1 día adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 4);
+      }
+      return fecha;
+    }
+    if (
+      formData.Fecha_produccion_interna &&
+      datos?.Procesos_especiales === "PD produccion interna"
+    ) {
+      const profesionalDate = new Date(formData.Fecha_produccion_interna);
+      const profesionalDateUTC = new Date(
+        Date.UTC(
+          profesionalDate.getUTCFullYear(),
+          profesionalDate.getUTCMonth(),
+          profesionalDate.getUTCDate()
+        )
       );
+
+      let fechaProfesional = new Date(profesionalDateUTC);
+      fechaProfesional.setUTCDate(fechaProfesional.getUTCDate() + 7);
+      fechaProfesional = ajustarAFechaHabil(fechaProfesional); // Ajustar si cae en fin de semana
+
+      let fechaCliente = new Date(fechaProfesional);
+      fechaCliente.setUTCDate(fechaCliente.getUTCDate() + 4);
+      fechaCliente = ajustarAFechaHabil(fechaCliente); // Ajustar si cae en fin de semana
+
+      // Convertir a formato YYYY-MM-DD
+      const formattedProfecionalDate = fechaProfesional
+        .toISOString()
+        .split("T")[0];
+      const formattedClientDate = fechaCliente.toISOString().split("T")[0];
+
+      setFormData((prevFormSets) => ({
+        ...prevFormSets,
+
+        Fecha_entrega_profesional: formattedProfecionalDate,
+        Fecha_entrega_cliente: formattedClientDate,
+        Editado_por_widget: true,
+      }));
+    }
+  }, [formData.Fecha_produccion_interna]);
+
+  useEffect(() => {
+    if (
+      formData.Fecha_entrega_profesional &&
+      datos?.Procesos_especiales === "PD produccion interna"
+    ) {
+      // If manually modified in PD production mode, update client date with 4 business days
+      const profesionalDate = new Date(formData.Fecha_entrega_profesional);
+      const profesionalDateUTC = new Date(
+        Date.UTC(
+          profesionalDate.getUTCFullYear(),
+          profesionalDate.getUTCMonth(),
+          profesionalDate.getUTCDate()
+        )
+      );
+
+      function ajustarAFechaHabil(fecha) {
+        const diaSemana = fecha.getUTCDay();
+        if (diaSemana === 6) {
+          // Si es sábado, mover al lunes (2 días adelante)
+          fecha.setUTCDate(fecha.getUTCDate() + 3);
+        } else if (diaSemana === 0) {
+          // Si es domingo, mover al lunes (1 día adelante)
+          fecha.setUTCDate(fecha.getUTCDate() + 2);
+        } else if (diaSemana === 5) {
+          // Si es domingo, mover al lunes (1 día adelante)
+          fecha.setUTCDate(fecha.getUTCDate() + 4);
+        } else if (diaSemana === 1) {
+          // Si es domingo, mover al lunes (1 día adelante)
+          fecha.setUTCDate(fecha.getUTCDate() + 2);
+        } else if (diaSemana === 2) {
+          // Si es domingo, mover al lunes (1 día adelante)
+          fecha.setUTCDate(fecha.getUTCDate() + 2);
+        } else if (diaSemana === 3) {
+          // Si es domingo, mover al lunes (1 día adelante)
+          fecha.setUTCDate(fecha.getUTCDate() + 2);
+        } else if (diaSemana === 4) {
+          // Si es domingo, mover al lunes (1 día adelante)
+          fecha.setUTCDate(fecha.getUTCDate() + 4);
+        }
+        return fecha;
+      }
+
+      // Calculate client date (4 business days after professional date)
+      let fechaCliente = new Date(profesionalDateUTC);
+      fechaCliente.setUTCDate(fechaCliente.getUTCDate() + 4);
+      fechaCliente = ajustarAFechaHabil(fechaCliente); // Adjust if weekend
+
+      // Format date as YYYY-MM-DD
+      const formattedClientDate = fechaCliente.toISOString().split("T")[0];
+
       setFormData((prevData) => ({
         ...prevData,
-        Fecha_entrega_cliente: nextWorkingDay,
+        Fecha_entrega_cliente: formattedClientDate,
+        Editado_por_widget: true,
+      }));
+    }
+  }, [formData.Fecha_entrega_profesional]);
+
+  useEffect(() => {
+    if (
+      formData.Fecha_entrega_profesional &&
+      datos?.Procesos_especiales !== "PD produccion interna"
+    ) {
+      // Convert the professional delivery date to a Date object
+      const profesionalDate = new Date(formData.Fecha_entrega_profesional);
+
+      const profesionalDateUTC = new Date(
+        Date.UTC(
+          profesionalDate.getUTCFullYear(),
+          profesionalDate.getUTCMonth(),
+          profesionalDate.getUTCDate(),
+          profesionalDate.getUTCHours(),
+          profesionalDate.getUTCMinutes(),
+          profesionalDate.getUTCSeconds()
+        )
+      );
+
+      const profesionalDayOfWeek = profesionalDateUTC.getUTCDay();
+      const clientDate = new Date(profesionalDateUTC);
+
+      // Apply specific rules based on the day of the week
+      switch (profesionalDayOfWeek) {
+        case 4: // Thursday
+          // If professional date is Thursday, client date is next Monday (+4 days)
+          clientDate.setUTCDate(profesionalDateUTC.getUTCDate() + 4);
+          break;
+
+        case 5: // Friday
+          // If professional date is Friday, client date is next Tuesday (+4 days)
+          clientDate.setUTCDate(profesionalDateUTC.getUTCDate() + 4);
+          break;
+
+        case 6: // Saturday
+          // If professional date is Saturday, client date is next Tuesday (+3 days)
+          clientDate.setUTCDate(profesionalDateUTC.getUTCDate() + 3);
+          break;
+
+        default:
+          // For all other days, add 2 days (original rule)
+          clientDate.setUTCDate(profesionalDateUTC.getUTCDate() + 2);
+          break;
+      }
+
+      // Format the date as a string
+      const formattedClientDate = clientDate.toISOString().split("T")[0];
+
+      // Update form data with the new client delivery date
+      setFormData((prevData) => ({
+        ...prevData,
+        Fecha_entrega_cliente: formattedClientDate,
       }));
     }
   }, [formData.Fecha_entrega_profesional]);
@@ -95,6 +265,7 @@ const PopupForm = ({
         "calcularnumeracionentregagestorindependiente",
         data
       );
+
       const gestor = response.details.output;
       setFormData((prevData) => ({
         ...prevData,
@@ -120,11 +291,23 @@ const PopupForm = ({
   }, [registerID]);
 
   useEffect(() => {
-    console.log("registros---->", registros);
     if (records) {
       findLatestDates();
     }
   }, [registros, records]);
+
+  useEffect(() => {
+    setFormData((prevData) => ({
+      ...prevData,
+      Fecha_entrega_profesional: latestDates.professionalDate,
+    }));
+    setTimeout(() => {
+      setFormData((prevData) => ({
+        ...prevData,
+        Fecha_entrega_cliente: latestDates.clientDate,
+      }));
+    }, 2000);
+  }, [latestDates.professionalDate, latestDates.clientDate]);
 
   const getInitialComment = (tag) => {
     if (tag === "Para traducir") return "PARA TRADUCIR";
@@ -138,7 +321,23 @@ const PopupForm = ({
 
     setIsSubmitting(true);
     await obtenerGestor();
-    await getRecords();
+    if (datos?.Procesos_especiales === "PD produccion interna") {
+      if (
+        formData.Estado_produccion_interna === "" ||
+        formData.Estado_produccion_interna === null ||
+        formData.Estado_produccion_interna === undefined ||
+        !formData.Fecha_produccion_interna
+      ) {
+        Swal.fire({
+          icon: "error",
+          title: "Campos obligatorios",
+          text: "Estado de produccion interna y Fecha de produccion interna ",
+        });
+        setIsSubmitting(false); // Finaliza el estado de carga
+        return;
+      }
+    }
+
     if (
       !formData.Fecha_entrega_cliente ||
       !formData.Fecha_entrega_profesional ||
@@ -172,13 +371,16 @@ const PopupForm = ({
         Estado_entrega_cliente = "Pendiente";
         break;
       case "Retrasada":
-        // Deja el valor por defecto, que se asume como ""
+        Estado_entrega_cliente = Estado_entrega_cliente || "Pendiente";
         break;
       default:
         Estado_entrega_cliente = formData.Estado;
         break;
     }
-
+    // Verificar y ajustar Estado_entrega_cliente si es -None-
+    if (Estado_entrega_cliente === "-None-") {
+      Estado_entrega_cliente = "Pendiente";
+    }
     // Aquí verificamos si tag es "Traducir" para ajustar Ocultar_entrega_gestor
     const shouldHideDeliveryManager = tag === "Traducir";
 
@@ -187,10 +389,14 @@ const PopupForm = ({
       Comentario: finalCommentValue,
       Ocultar_entrega_gestor: shouldHideDeliveryManager, // Ajustamos el valor aquí
       Estado_entrega_cliente: Estado_entrega_cliente, // Ajustamos el valor aquí
+      Creado_por_widget: true,
     });
 
     setFormData({
       Name: "",
+      Fecha_reagendada_prod_interna: "",
+      Fecha_produccion_interna: "",
+      Estado_produccion_interna: "",
       Estado: "Pendiente",
       Coordinacion_asociada: registerID,
       Paginas_a_entregar: "",
@@ -216,6 +422,7 @@ const PopupForm = ({
 
     togglePopups();
     setIsSubmitting(false); // Finaliza el estado de carga
+    await getRecords();
   };
 
   const handleSubmitWhithNew = async (e) => {
@@ -224,7 +431,22 @@ const PopupForm = ({
     if (isSubmitting) return; // Evita envíos si ya se está procesando
 
     setIsSubmitting(true);
-    await getRecords();
+    if (datos?.Procesos_especiales === "PD produccion interna") {
+      if (
+        formData.Estado_produccion_interna === "" ||
+        formData.Estado_produccion_interna === null ||
+        formData.Estado_produccion_interna === undefined ||
+        !formData.Fecha_produccion_interna
+      ) {
+        Swal.fire({
+          icon: "error",
+          title: "Campos obligatorios",
+          text: "Estado de produccion interna y Fecha de produccion interna ",
+        });
+        setIsSubmitting(false); // Finaliza el estado de carga
+        return;
+      }
+    }
 
     if (
       !formData.Fecha_entrega_cliente ||
@@ -272,17 +494,21 @@ const PopupForm = ({
       Comentario: finalCommentValue,
       Ocultar_entrega_gestor: shouldHideDeliveryManager,
       Estado_entrega_cliente: Estado_entrega_cliente, // Ajustamos el valor aquí
+      Creado_por_widget: true,
     });
 
     setFormData({
       Name: "",
+      Fecha_reagendada_prod_interna: "",
+      Fecha_produccion_interna: "",
+      Estado_produccion_interna: "",
       Estado: "Pendiente",
       Coordinacion_asociada: registerID,
       Paginas_a_entregar: "",
       Fecha_entrega_profesional: "",
       Fecha_entrega_cliente: "",
       Fecha_reagendada: "",
-      Comentario: getInitialComment(tag), // Usar la función auxiliar aquí
+      Comentario: comentario,
       Hora: "",
       Urgente: false,
       Entreg_adelantado: false,
@@ -306,34 +532,21 @@ const PopupForm = ({
       obtenerGestor();
     }, 2000);
     setIsSubmitting(false); // Inicia el estado de carga
+    await getRecords();
   };
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
     if (name === "Comentario") {
       setCommentEdited(true);
     }
-
     setFormData((prevData) => ({
       ...prevData,
       [name]: type === "checkbox" ? checked : value,
     }));
   };
-  const getNextWorkingDay = (startDate, numberOfDays) => {
-    let currentDate = new Date(startDate);
-    let addedDays = 0;
 
-    while (addedDays < numberOfDays) {
-      currentDate.setDate(currentDate.getDate() + 1);
-      const dayOfWeek = currentDate.getDay();
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-        // Excluye domingos (0) y sábados (6)
-        addedDays++;
-      }
-    }
-
-    return currentDate.toISOString().split("T")[0]; // Formatea la fecha en YYYY-MM-DD
-  };
   function formatDate(dateString) {
     if (dateString) {
       // Check if dateString is not null
@@ -343,6 +556,7 @@ const PopupForm = ({
       return ""; // Or return any default value you prefer
     }
   }
+
   const findLatestDates = () => {
     let latestClientDate = null;
     let latestProfessionalDate = null;
@@ -380,15 +594,15 @@ const PopupForm = ({
       findLatestDates();
     }
   }, [records]);
+
   const formattedClientDate = formatDate(latestDates?.clientDate ?? null);
-  console.log(formattedClientDate || "No hay fecha de cliente disponible");
 
   return (
-    <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center bg-gray-950  bg-opacity-50 backdrop-blur-sm z-50 ">
+    <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center bg-gray-950  bg-opacity-30  z-50 ">
       <div
         className={`${
           dark ? "bg-[#2f374c]" : "bg-[#f0f1f1]"
-        } p-6 rounded-lg  w-[40%] h-[90%] shadow-[0px_0px_30px_rgba(234,234,234,0.5)] `}
+        } p-6 rounded-lg  w-[40%] h-[90%] overflow-auto shadow-[0px_0px_30px_rgba(234,234,234,0.5)] `}
       >
         <div className="flex items-center justify-between ">
           <h2
@@ -415,7 +629,7 @@ const PopupForm = ({
                   type="text"
                   id="Name"
                   name="Name"
-                  value={formData.Name}
+                  value={formData.Name || ""}
                   onChange={handleChange}
                   className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
                     dark ? "bg-[#222631]" : "bg-white"
@@ -437,7 +651,7 @@ const PopupForm = ({
                   type="text"
                   id="Entrega_Gestor"
                   name="Entrega_Gestor"
-                  value={formData.Entrega_Gestor}
+                  value={formData.Entrega_Gestor || ""}
                   onChange={handleChange}
                   className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
                     dark ? "bg-[#222631]" : "bg-white"
@@ -446,6 +660,77 @@ const PopupForm = ({
                   } sm:text-md 4xl:text-lg`}
                 />
               </div>
+
+              {datos?.Procesos_especiales === "PD produccion interna" && (
+                <>
+                  <div className="mb-4 flex items-center justify-between ">
+                    <label
+                      htmlFor="Name"
+                      className={`block text-md 4xl:text-lg font-medium ${
+                        dark ? "text-white" : "text-black"
+                      }  mr-4`}
+                    >
+                      E. prod interna
+                    </label>
+                    <select
+                      id="Estado_produccion_interna"
+                      name="Estado_produccion_interna"
+                      value={formData.Estado_produccion_interna}
+                      className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                        dark ? "bg-[#222631]" : "bg-white"
+                      } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
+                      onChange={handleChange}
+                    >
+                      {estadosProduccion?.map((e) => (
+                        <option key={e.display_value} value={e.display_value}>
+                          {e.display_value}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mb-4 flex items-center justify-between ">
+                    <label
+                      htmlFor="Name"
+                      className={`block text-md 4xl:text-lg font-medium ${
+                        dark ? "text-white" : "text-black"
+                      }  mr-4`}
+                    >
+                      Fecha. prod interna
+                    </label>
+                    <input
+                      type="date"
+                      id={`Fecha_produccion_interna`}
+                      name={`Fecha_produccion_interna`}
+                      value={formData.Fecha_produccion_interna || ""}
+                      onChange={handleChange}
+                      className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                        dark ? "bg-[#222631]" : "bg-white"
+                      } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
+                    />
+                  </div>
+                  {/* <div className="mb-4 flex items-center justify-between ">
+                    <label
+                      htmlFor="Name"
+                      className={`block text-md 4xl:text-lg font-medium ${
+                        dark ? "text-white" : "text-black"
+                      }  mr-4`}
+                    >
+                      Fecha. prod interna reagendada
+                    </label>
+                    <input
+                      type="date"
+                      id={`Fecha_reagendada_prod_interna`}
+                      name={`Fecha_reagendada_prod_interna`}
+                      value={formData.Fecha_reagendada_prod_interna || ""}
+                      onChange={handleChange}
+                      className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                        dark ? "bg-[#222631]" : "bg-white"
+                      } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
+                    />
+                  </div> */}
+                </>
+              )}
+
               <div className="mb-4 w-full flex items-center justify-between">
                 <label
                   htmlFor="Estado"
@@ -459,7 +744,7 @@ const PopupForm = ({
                 <select
                   id="Estado"
                   name="Estado"
-                  value={formData.Estado}
+                  value={formData.Estado || "Pendiente"}
                   onChange={handleChange}
                   className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
                     dark ? "bg-[#222631]" : "bg-white"
@@ -467,7 +752,7 @@ const PopupForm = ({
                     dark ? "text-white" : "text-black"
                   } sm:text-md 4xl:text-lg`}
                 >
-                  <option value="None">-None-</option>
+                  {/* <option value="None">-None-</option> */}
                   <option value="Pendiente">Pendiente</option>
                   <option value="Entregada">Entregada</option>
                   <option value="Paralizada">Paralizada</option>
@@ -475,6 +760,7 @@ const PopupForm = ({
                   {/* <option value="Correcciones">Correcciones</option> */}
                   {/* <option value="Entrega asignada">Entrega asignada</option> */}
                   <option value="Caida">Caida</option>
+                  <option value="Incompleta">Incompleta</option>
                 </select>
               </div>
               <div className="mb-4 flex items-center justify-between">
@@ -490,7 +776,7 @@ const PopupForm = ({
                   type="text"
                   id="Paginas_a_entregar"
                   name="Paginas_a_entregar"
-                  value={formData.Paginas_a_entregar}
+                  value={formData.Paginas_a_entregar || ""}
                   onChange={handleChange}
                   className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
                     dark ? "bg-[#222631]" : "bg-white"
@@ -512,7 +798,7 @@ const PopupForm = ({
                   type="date"
                   id="Fecha_entrega_profesional"
                   name="Fecha_entrega_profesional"
-                  value={formData.Fecha_entrega_profesional}
+                  value={formData.Fecha_entrega_profesional || ""}
                   onChange={handleChange}
                   className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
                     dark ? "bg-[#222631]" : "bg-white"
@@ -540,7 +826,7 @@ const PopupForm = ({
                   type="date"
                   id="Fecha_entrega_cliente"
                   name="Fecha_entrega_cliente"
-                  value={formData.Fecha_entrega_cliente}
+                  value={formData.Fecha_entrega_cliente || ""}
                   onChange={handleChange}
                   className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
                     dark ? "bg-[#222631]" : "bg-white"
@@ -568,7 +854,7 @@ const PopupForm = ({
                   type="time"
                   id="Hora"
                   name="Hora"
-                  value={formData.Hora}
+                  value={formData.Hora || ""}
                   onChange={handleChange}
                   className={`block border-2 w-[125px] text-center border-none rounded-md shadow-sm ${
                     dark ? "bg-[#222631]" : "bg-white"
@@ -592,7 +878,7 @@ const PopupForm = ({
                       type="checkbox"
                       id="Urgente"
                       name="Urgente"
-                      checked={formData.Urgente}
+                      checked={formData.Urgente || false}
                       onChange={handleChange}
                       className="rounded-md w-4 h-4 mt-1 ml-6"
                     />
@@ -611,11 +897,13 @@ const PopupForm = ({
                 <textarea
                   id="Comentario"
                   name="Comentario"
-                  value={formData.Comentario}
+                  value={formData.Comentario || ""}
                   onChange={handleChange}
                   className={`mt-1 block w-full border-2 pl-2 pt-1 border-none  rounded-md shadow-sm  ${
                     dark ? "bg-[#222631]" : "bg-white"
-                  } text-white sm:text-md 4xl:text-lg`}
+                  } ${
+                    dark ? "text-white" : "text-black"
+                  } sm:text-md 4xl:text-lg`}
                 ></textarea>
               </div>
               <div className="flex justify-end gap-4">

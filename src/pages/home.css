@@ -1,9 +1,23 @@
 /* Media query para pantallas más grandes (por ejemplo, monitores de 24 pulgadas) */
 /* Estilos base para ambos tamaños de pantalla */
 
+.logoIa:hover .porcentaje {
+  opacity: 1;
+}
+input:focus,
+textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #4a90e2; /* Estilo visual, opcional */
+}
+html {
+  scroll-behavior: smooth;
+}
+label {
+  pointer-events: none;
+}
 .card {
   width: 20vw;
-  height: 55vh;
+  height: 65vh;
   display: flex;
   /* background-color: #2f374c; */
   flex-direction: column;
@@ -12,7 +26,7 @@
   margin-bottom: 10px;
   padding: 4px;
   border-radius: 8px;
-
+  transition: 0.2s;
   padding: 20px;
 }
 /* .sombra div {
@@ -25,7 +39,28 @@
   box-shadow: 0px 0px 30px rgba(255, 0, 0, 0.826);
   border: 3px solid #f73463;
 }
-
+.card2 {
+  width: 20vw;
+  height: 55vh;
+  display: flex;
+  /* background-color: #2f374c; */
+  flex-direction: column;
+  justify-content: space-between;
+  margin-right: 10px;
+  margin-bottom: 10px;
+  padding: 4px;
+  border-radius: 8px;
+  box-shadow: none;
+  border: 1px solid rgb(59, 59, 59);
+  padding: 20px;
+  transition: 0.2s;
+}
+/* .sombra div {
+  width: 100%;
+  border-right: 1px solid black;
+  display: flex;
+  justify-content: center;
+} */
 /* En tu archivo CSS */
 /* @keyframes pulse {
   0% {
@@ -57,8 +92,24 @@
 @media screen and (max-width: 1600px) {
   .card {
     width: 25vw;
-    height: 65vh;
+    height: 72vh;
     padding: 10px;
+  }
+  .card2 {
+    width: 25vw;
+    height: 65vh;
+    display: flex;
+    /* background-color: #2f374c; */
+    flex-direction: column;
+    justify-content: space-between;
+    margin-right: 10px;
+    margin-bottom: 10px;
+    padding: 4px;
+    border-radius: 8px;
+    box-shadow: none;
+    border: 1px solid rgb(59, 59, 59);
+    padding: 20px;
+    transition: 0.2s;
   }
   .cont {
     padding-left: 0;

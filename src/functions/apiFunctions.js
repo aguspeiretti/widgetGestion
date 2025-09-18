@@ -20,9 +20,7 @@ export function getUsers() {
       page: 1,
       per_page: 200,
     })
-      .then(function (response) {
-        console.log("respuesta users", response);
-      })
+      .then(function (response) {})
       .catch(function (error) {
         reject(error);
       });
@@ -30,7 +28,6 @@ export function getUsers() {
 }
 
 export function attachFile(registerID, file) {
-  console.log("data del attach");
   return new Promise(function (resolve, reject) {
     window.ZOHO.CRM.API.attachFile({
       Entity: "Leads",
@@ -39,7 +36,6 @@ export function attachFile(registerID, file) {
     })
       .then(function (data) {
         resolve(data);
-        console.log("esta es la data del attach", data);
       })
       .catch(function (error) {
         reject(error);
@@ -50,9 +46,7 @@ export function attachFile(registerID, file) {
 export function getFields(entrity) {
   return new Promise(function (resolve, reject) {
     window.ZOHO.CRM.META.getFields({ Entity: "Leads" })
-      .then(function (response) {
-        console.log("respuesta Fields", response);
-      })
+      .then(function (response) {})
       .catch(function (error) {
         reject(error);
       });
@@ -62,9 +56,7 @@ export function getFields(entrity) {
 export function execute(func_name, req_data) {
   return new Promise(function (resolve, reject) {
     window.ZOHO.CRM.FUNCTIONS.execute(func_name, req_data)
-      .then(function (data) {
-        console.log(data);
-      })
+      .then(function (data) {})
       .catch(function (error) {
         reject(error);
       });
@@ -89,12 +81,11 @@ export function getRelatedRecords(module, registerID, related) {
       });
   });
 }
+
 export function createRecord() {
   return new Promise(function (resolve, reject) {
     window.ZOHO.CRM.UI.Record.create({ Entity: "Entregas" })
-      .then(function (data) {
-        console.log(data);
-      })
+      .then(function (data) {})
       .catch(function (error) {
         reject(error);
       });
@@ -109,13 +100,14 @@ export function insertRecord(APIData) {
       Trigger: ["workflow"],
     })
       .then(function (data) {
-        console.log(data);
+        resolve(data);
       })
       .catch(function (error) {
         reject(error);
       });
   });
 }
+
 export function insertRecord2(APIData) {
   return new Promise(function (resolve, reject) {
     window.ZOHO.CRM.API.insertRecord({
@@ -129,7 +121,6 @@ export function insertRecord2(APIData) {
           "El registro se ha agregado correctamente",
           "success"
         );
-        console.log(data);
       })
       .catch(function (error) {
         reject(error);
@@ -145,7 +136,6 @@ export function updateRecord(APIData) {
       Trigger: ["workflow"],
     })
       .then(function (data) {
-        console.log("Actualización exitosa:", data);
         resolve(data); // Resolvemos la promesa con los datos actualizados
       })
       .catch(function (error) {
@@ -165,13 +155,11 @@ export function updateRecord(APIData) {
 
 export function deleteRecord(id, shouldReload = false) {
   return new Promise((resolve, reject) => {
-    console.log(`Intentando eliminar la entrega con ID: ${id}`);
     window.ZOHO.CRM.API.deleteRecord({
       Entity: "Entregas",
       RecordID: id,
     })
       .then((data) => {
-        console.log(`Respuesta de la API para la entrega ${id}:`, data);
         if (
           data &&
           data.data &&
@@ -183,10 +171,8 @@ export function deleteRecord(id, shouldReload = false) {
           if (shouldReload) {
             window.location.reload();
           }
-          console.log(`Entrega ${id} eliminada con éxito`);
           resolve({ status: "success" });
         } else {
-          console.log(`Error al eliminar la entrega ${id}:`, data);
           resolve({
             status: "error",
             error: "Eliminación fallida",
@@ -202,7 +188,6 @@ export function deleteRecord(id, shouldReload = false) {
 }
 
 export async function deleteAllRecords(entregas) {
-  console.log(`Intentando eliminar ${entregas.length} entregas`);
   const results = await Promise.all(
     entregas.map((entrega) => deleteRecord(entrega.id, false))
   );
@@ -211,11 +196,6 @@ export async function deleteAllRecords(entregas) {
     (result) => result.status === "success"
   ).length;
   const failedCount = results.length - successCount;
-
-  console.log(
-    `Resultados de eliminación: ${successCount} exitosas, ${failedCount} fallidas`
-  );
-  console.log("Resultados detallados:", results);
 
   return {
     message: `${successCount} de ${entregas.length} entregas han sido eliminadas. ${failedCount} fallaron.`,

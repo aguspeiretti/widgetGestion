@@ -5,11 +5,7 @@ import "./index.css";
 
 window.ZOHO.embeddedApp.on("PageLoad", function (data) {
   const root = ReactDOM.createRoot(document.getElementById("root"));
-  root.render(
-    <React.StrictMode>
-      <App data={data} />
-    </React.StrictMode>
-  );
+  root.render(<App data={data} />);
 });
 window.ZOHO.embeddedApp.init();
 

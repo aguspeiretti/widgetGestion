@@ -126,8 +126,6 @@ const Home = ({ datos, registerID, handleResize }) => {
     }
   };
   const getRecords = async () => {
-    console.log("getRecords");
-
     try {
       const response = await getRelatedRecords(
         "Coordinacion",
@@ -144,6 +142,8 @@ const Home = ({ datos, registerID, handleResize }) => {
       const datos = response.register.map((record) => ({
         id: record.id,
         ...record,
+        // Set default value for Estado_produccion_interna if it's empty or null
+        Estado_produccion_interna: record.Estado_produccion_interna,
       }));
 
       // Ordena los registros por fecha
@@ -186,7 +186,7 @@ const Home = ({ datos, registerID, handleResize }) => {
     if (hasUnsavedChanges()) {
       const result = await Swal.fire({
         title: "¿Guardar cambios antes de eliminar?",
-        text: "Hay cambios sin guardar. Al eliminar la tarjeta los cambios se guardaran automaticamente!",
+        text: "Hay cambios sin guardar. Al eliminar la tarjeta los cambios se guardarán automáticamente!",
         icon: "question",
         showCancelButton: true,
         confirmButtonText: "Sí, Eliminar",
@@ -194,7 +194,13 @@ const Home = ({ datos, registerID, handleResize }) => {
       });
 
       if (result.isConfirmed) {
-        await saveAllChangesWhithOutClose();
+        try {
+          // Intentar guardar cambios primero
+          await saveAllChangesWhithOutClose();
+        } catch (error) {
+          console.error("Error al guardar los cambios:", error);
+          return; // Si no se pueden guardar los cambios, no procedemos a eliminar
+        }
 
         try {
           Swal.fire({
@@ -386,6 +392,7 @@ const Home = ({ datos, registerID, handleResize }) => {
       Swal.fire("Cancelado", "Las entregas no se han eliminado", "info");
     }
   };
+
   const updateRecordInCRM = async (index, recordData) => {
     const fieldsToUpdate = [
       "id",
@@ -406,6 +413,9 @@ const Home = ({ datos, registerID, handleResize }) => {
       "Comentario_no_procesada_por_Coordinacion",
       "Entrega_enviada_por_correo",
       "Comentarios_profesional",
+      "Fecha_reagendada_prod_interna",
+      "Fecha_produccion_interna",
+      "Estado_produccion_interna",
     ];
 
     const updatedData = {};
@@ -416,116 +426,112 @@ const Home = ({ datos, registerID, handleResize }) => {
       }
     });
 
-    const motivosIndividuales = Object.keys(
-      selectedMotivos[recordData.id] || []
-    );
+    // Filtra solo las claves cuyo valor es true
+    const motivosSeleccionados = selectedMotivos[recordData.id] || {};
+    const motivosIndividuales = Object.entries(motivosSeleccionados)
+      .filter(([_, isSelected]) => isSelected)
+      .map(([motivo]) => motivo);
+
     updatedData.Motivo_no_procesada = motivosIndividuales;
 
     // Solo setea Editado_por_widget si la tarjeta específica ha sido editada
     updatedData.Editado_por_widget =
       formSets[index]?.Editado_por_widget || false;
 
-    // if (enviarEntrega === true) {
-    //   updatedData.Entrega_enviada_por_correo = true;
-    // }
-    console.log(formSets[index]?.Entrega_enviada_por_correo);
-
     if (formSets[index]?.Entrega_enviada_por_correo === true) {
       updatedData.Entrega_enviada_por_correo = true;
     }
 
-    if (
-      (updatedData.Entrega_Gestor !== "CO" &&
-        (updatedData.Paginas_a_entregar === "" ||
-          updatedData.Paginas_a_entregar === null)) ||
-      updatedData.Fecha_entrega_profesional === "" ||
-      updatedData.Fecha_entrega_profesional === null ||
-      updatedData.Fecha_entrega_cliente === "" ||
-      updatedData.Fecha_entrega_cliente === null ||
-      updatedData.Name === "" ||
-      updatedData.Name === null ||
-      updatedData.Entrega_Gestor === "" ||
-      updatedData.Entrega_Gestor === null ||
-      updatedData.Estado === "" ||
-      updatedData.Estado === null ||
-      updatedData.No_procesada === true ||
-      updatedData.No_procesada === null ||
-      updatedData.Motivo_no_procesada === "" ||
-      updatedData.Motivo_no_procesada === null ||
-      updatedData.Comentario_no_procesada_por_Coordinacion === "" ||
-      updatedData.Comentario_no_procesada_por_Coordinacion === null
-      // ||updatedData.Entrega_enviada_por_correo === "" ||
-      // updatedData.Entrega_enviada_por_correo === null
-    ) {
-      const camposInvalidos = [];
+    // Validaciones
+    const camposInvalidos = [];
 
-      // Validar 'Paginas_a_entregar' solo si 'Entrega_Gestor' no es "CO"
-      if (updatedData.Entrega_Gestor !== "CO") {
-        if (
-          updatedData.Paginas_a_entregar === "" ||
-          updatedData.Paginas_a_entregar === null
-        ) {
-          camposInvalidos.push("Paginas a entregar");
-        }
-      }
-
-      // Validar los otros campos
+    // Validar 'Paginas_a_entregar' solo si 'Entrega_Gestor' no es "CO"
+    if (updatedData.Entrega_Gestor !== "CO") {
       if (
-        updatedData.Fecha_entrega_profesional === "" ||
-        updatedData.Fecha_entrega_profesional === null
+        updatedData.Paginas_a_entregar === "" ||
+        updatedData.Paginas_a_entregar === null
       ) {
-        camposInvalidos.push("Fecha entrega profesional");
-      }
-      if (
-        !updatedData.Entrega_enviada_por_correo &&
-        formSets[index]?.requiresEmail === true // Validar solo si este índice requiere correo
-      ) {
-        camposInvalidos.push("Entrega enviada por correo");
-      }
-
-      if (
-        updatedData.Fecha_entrega_cliente === "" ||
-        updatedData.Fecha_entrega_cliente === null
-      ) {
-        camposInvalidos.push("Fecha entrega cliente");
-      }
-      if (updatedData.Entrega_enviada_por_correo === undefined) {
-        camposInvalidos.push("Entrega enviada por correo");
-      }
-      if (updatedData.Name === "" || updatedData.Name === null) {
-        camposInvalidos.push("Nº de entrega");
-      }
-
-      if (
-        updatedData.Entrega_Gestor === "" ||
-        updatedData.Entrega_Gestor === null
-      ) {
-        camposInvalidos.push("Nº de entrega gestor");
-      }
-
-      if (updatedData.No_procesada === true) {
-        if (
-          Array.isArray(updatedData.Motivo_no_procesada) &&
-          updatedData.Motivo_no_procesada.length === 0
-        ) {
-          camposInvalidos.push("Motivo no procesada");
-        }
-      }
-
-      if (updatedData.Estado === "" || updatedData.Estado === null) {
-        camposInvalidos.push("Estado");
-      }
-
-      // Mostrar el error si hay campos inválidos
-      if (camposInvalidos.length > 0) {
-        await Swal.fire({
-          icon: "error",
-          title: `Falta completar: ${camposInvalidos.join(", ")}`,
-          // text: camposInvalidos.join("\n"),
-        });
-        throw new Error(camposInvalidos.join("\n"));
+        camposInvalidos.push("Paginas a entregar");
       }
     }
+
+    // Validar campos básicos para todas las tarjetas
+    if (
+      updatedData.Fecha_entrega_profesional === "" ||
+      updatedData.Fecha_entrega_profesional === null
+    ) {
+      camposInvalidos.push("Fecha entrega profesional");
+    }
+
+    if (
+      updatedData.Fecha_entrega_cliente === "" ||
+      updatedData.Fecha_entrega_cliente === null
+    ) {
+      camposInvalidos.push("Fecha entrega cliente");
+    }
+
+    if (updatedData.Entrega_enviada_por_correo === undefined) {
+      camposInvalidos.push("Entrega enviada por correo");
+    }
+
+    if (updatedData.Name === "" || updatedData.Name === null) {
+      camposInvalidos.push("Nº de entrega");
+    }
+
+    if (
+      updatedData.Entrega_Gestor === "" ||
+      updatedData.Entrega_Gestor === null
+    ) {
+      camposInvalidos.push("Nº de entrega gestor");
+    }
+
+    if (updatedData.Estado === "" || updatedData.Estado === null) {
+      camposInvalidos.push("Estado");
+    }
+
+    // Validar campos de producción interna siempre cuando existe Estado_produccion_interna
+    // que no sea vacío o "Pendiente"
+    // Validar campos de producción interna solo cuando es un proceso de producción interna
+    const requiereValidacionProduccionInterna =
+      datos?.Procesos_especiales === "PD produccion interna";
+
+    if (requiereValidacionProduccionInterna) {
+      if (
+        recordData.Fecha_produccion_interna === "" ||
+        recordData.Fecha_produccion_interna === null
+      ) {
+        camposInvalidos.push("Fecha produccion interna");
+      }
+    }
+
+    // Validación específica para envío por correo
+    if (
+      !updatedData.Entrega_enviada_por_correo &&
+      formSets[index]?.requiresEmail === true // Validar solo si este índice requiere correo
+    ) {
+      camposInvalidos.push("Entrega enviada por correo");
+    }
+
+    // Validación para motivos de no procesada
+    if (updatedData.No_procesada === true) {
+      if (
+        Array.isArray(updatedData.Motivo_no_procesada) &&
+        updatedData.Motivo_no_procesada.length === 0
+      ) {
+        camposInvalidos.push("Motivo no procesada");
+      }
+    }
+
+    // Mostrar el error si hay campos inválidos
+    if (camposInvalidos.length > 0) {
+      await Swal.fire({
+        icon: "error",
+        title: `Falta completar: ${camposInvalidos.join(", ")}`,
+        text: "Complete todos los campos requeridos antes de guardar.",
+      });
+      throw new Error(`Campos por completar: ${camposInvalidos.join(", ")}`);
+    }
+
     try {
       const result = await updateRecord(updatedData);
 
@@ -536,48 +542,252 @@ const Home = ({ datos, registerID, handleResize }) => {
       throw error;
     }
   };
+
   const ejecutarFuncion = async () => {
     setRealizarGuardado(!realizarGuardado);
   };
 
-  const saveAllChanges = async () => {
-    try {
-      await ejecutarFuncion(); // Llama al evento del hijo
+  const saveAllChanges = async (e) => {
+    // Asegurarse de que el evento se detiene completamente
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+    if (e && e.stopPropagation) {
+      e.stopPropagation();
+    }
 
+    console.log("Iniciando guardado de cambios...");
+
+    try {
+      // Envolver ejecutarFuncion en su propio try/catch para aislar posibles errores
+      try {
+        console.log("Ejecutando función del hijo...");
+        await ejecutarFuncion();
+        console.log("Función del hijo ejecutada correctamente");
+      } catch (funcError) {
+        console.error("Error en ejecutarFuncion:", funcError);
+        // No lanzamos el error para que no interrumpa el flujo
+      }
+
+      // Verificar todos los campos antes de intentar guardar
+      let validationError = false;
+      let errorMessages = [];
+
+      console.log("Iniciando validación de registros...");
+      // Validar cada registro antes de intentar guardar
+      for (let i = 0; i < formSets.length; i++) {
+        try {
+          // Solo verificamos, no guardamos aún
+          await validateRecord(i, formSets[i]);
+          console.log(`Registro ${i + 1} validado correctamente`);
+        } catch (error) {
+          validationError = true;
+          errorMessages.push(`Registro ${i + 1}: ${error.message}`);
+          console.error(`Error validando registro ${i + 1}:`, error.message);
+        }
+      }
+
+      // Si hay errores de validación, mostrar y salir
+      if (validationError) {
+        console.log(
+          "Se encontraron errores de validación, mostrando alerta..."
+        );
+        await Swal.fire({
+          icon: "error",
+          title: "Faltan campos por completar",
+          text: errorMessages.join("\n"),
+          confirmButtonText: "Corregir campos",
+        });
+        console.log(
+          "Alerta de validación mostrada, permaneciendo en el widget"
+        );
+        return; // Importante: salir de la función sin cerrar el widget
+      }
+
+      console.log(
+        "Todos los registros validados, procediendo a actualizar en CRM..."
+      );
+      // Si llegamos aquí, todos los registros pasaron la validación
       const updatePromises = formSets.map((recordData, index) => {
+        console.log(`Preparando actualización para registro ${index + 1}`);
         return updateRecordInCRM(index, recordData);
       });
 
+      console.log("Ejecutando todas las actualizaciones...");
       const results = await Promise.all(updatePromises);
+      console.log("Actualizaciones completadas, actualizando estado...");
 
       // Actualizar el estado con los resultados
       setFormSets((prevFormSets) => {
         const newFormSets = [...prevFormSets];
         results.forEach((result, index) => {
+          console.log(`Actualizando estado para registro ${index + 1}`);
           newFormSets[index] = { ...newFormSets[index], ...result };
         });
         return newFormSets;
       });
 
-      Swal.fire({
+      console.log("Estado actualizado, mostrando mensaje de éxito...");
+      // Mostrar mensaje de éxito
+      await Swal.fire({
         icon: "success",
         title: "Cambios guardados",
         showConfirmButton: false,
         timer: 2000,
       });
 
-      window.ZOHO.CRM.UI.Popup.closeReload().then(function (data) {});
+      console.log("Proceso completado exitosamente sin cerrar el widget");
+      // La línea comentada que cierra el widget:
+      window.ZOHO.CRM.UI.Popup.closeReload();
     } catch (error) {
-      console.error("Error al guardar los cambios:", error);
-      Swal.fire({
+      console.error("Error general al guardar los cambios:", error);
+      // Mostrar el mensaje de error y NO cerrar el widget
+      await Swal.fire({
         icon: "error",
-        title: "Faltan campos de completar",
-        text: "Por favor, inténtalo de nuevo más tarde",
+        title: "Error al guardar los cambios",
+        text:
+          error.message ||
+          "Por favor, revisa los campos obligatorios e inténtalo de nuevo.",
+        confirmButtonText: "Corregir campos",
       });
+      console.log("Se mostró alerta de error, permaneciendo en el widget");
+      // Explícitamente NO hacemos nada más para mantener el widget abierto
+      return;
     }
+
+    console.log("Función saveAllChanges finalizada completamente");
   };
+
+  // Función para validar un registro sin intentar guardarlo
+
+  const validateRecord = async (index, recordData) => {
+    // Copia la lógica de validación de updateRecordInCRM
+    const camposInvalidos = [];
+
+    // Asegurar que Estado_produccion_interna tiene valor por defecto
+
+    // Validar 'Paginas_a_entregar' solo si 'Entrega_Gestor' no es "CO"
+    if (recordData.Entrega_Gestor !== "CO") {
+      if (
+        recordData.Paginas_a_entregar === "" ||
+        recordData.Paginas_a_entregar === null
+      ) {
+        camposInvalidos.push("Paginas a entregar");
+      }
+    }
+
+    // Validar campos básicos para todas las tarjetas
+    if (
+      recordData.Fecha_entrega_profesional === "" ||
+      recordData.Fecha_entrega_profesional === null
+    ) {
+      camposInvalidos.push("Fecha entrega profesional");
+    }
+
+    if (
+      recordData.Fecha_entrega_cliente === "" ||
+      recordData.Fecha_entrega_cliente === null
+    ) {
+      camposInvalidos.push("Fecha entrega cliente");
+    }
+
+    if (recordData.Entrega_enviada_por_correo === undefined) {
+      camposInvalidos.push("Entrega enviada por correo");
+    }
+
+    if (recordData.Name === "" || recordData.Name === null) {
+      camposInvalidos.push("Nº de entrega");
+    }
+
+    if (
+      recordData.Entrega_Gestor === "" ||
+      recordData.Entrega_Gestor === null
+    ) {
+      camposInvalidos.push("Nº de entrega gestor");
+    }
+
+    if (recordData.Estado === "" || recordData.Estado === null) {
+      camposInvalidos.push("Estado");
+    }
+    // Validar campos de producción interna siempre cuando existe Estado_produccion_interna
+    // que no sea vacío o "Pendiente"
+    const requiereValidacionProduccionInterna =
+      datos?.Procesos_especiales === "PD produccion interna";
+
+    if (requiereValidacionProduccionInterna) {
+      if (
+        recordData.Fecha_produccion_interna === "" ||
+        recordData.Fecha_produccion_interna === null
+      ) {
+        camposInvalidos.push("Fecha produccion interna");
+      }
+    }
+
+    // Validación específica para envío por correo
+    if (
+      !recordData.Entrega_enviada_por_correo &&
+      formSets[index]?.requiresEmail === true
+    ) {
+      camposInvalidos.push("Entrega enviada por correo");
+    }
+
+    // Validación para motivos de no procesada
+    if (recordData.No_procesada === true) {
+      // Comprobar si hay motivos seleccionados en selectedMotivos
+      const motivosSeleccionados = selectedMotivos[recordData.id] || {};
+      const hayMotivosSeleccionados =
+        Object.keys(motivosSeleccionados).length > 0;
+
+      // Si no hay motivos seleccionados ni en Motivo_no_procesada ni en selectedMotivos
+      if (
+        (!recordData.Motivo_no_procesada ||
+          (Array.isArray(recordData.Motivo_no_procesada) &&
+            recordData.Motivo_no_procesada.length === 0)) &&
+        !hayMotivosSeleccionados
+      ) {
+        camposInvalidos.push("Motivo no procesada");
+      }
+    }
+
+    // Si hay campos inválidos, lanzamos error
+    if (camposInvalidos.length > 0) {
+      throw new Error(`Campos por completar: ${camposInvalidos.join(", ")}`);
+    }
+
+    // Si no hay errores, retornamos true
+    return true;
+  };
+
   const saveAllChangesWhithOutClose = async () => {
     try {
+      // Verificar todos los campos antes de intentar guardar
+      let validationError = false;
+      let errorMessages = [];
+
+      // Validar cada registro antes de intentar guardar
+      for (let i = 0; i < formSets.length; i++) {
+        try {
+          // Solo verificamos, no guardamos aún
+          await validateRecord(i, formSets[i]);
+        } catch (error) {
+          validationError = true;
+          errorMessages.push(`Registro ${i + 1}: ${error.message}`);
+        }
+      }
+
+      // Si hay errores de validación, mostrar y salir
+      if (validationError) {
+        await Swal.fire({
+          icon: "error",
+          title: "Faltan campos por completar",
+          text: errorMessages.join("\n"),
+          confirmButtonText: "Corregir campos",
+        });
+        // Lanzar error para que la función que llamó a esta sepa que hubo un problema
+        throw new Error("Hay campos obligatorios sin completar");
+      }
+
+      // Si llegamos aquí, todos los registros pasaron la validación
       const updatePromises = formSets.map((recordData, index) =>
         updateRecordInCRM(index, recordData)
       );
@@ -595,27 +805,61 @@ const Home = ({ datos, registerID, handleResize }) => {
         return newFormSets;
       });
 
-      Swal.fire({
+      await Swal.fire({
         icon: "success",
         title: "Cambios guardados",
         showConfirmButton: false,
         timer: 2000,
       });
 
-      // window.ZOHO.CRM.UI.Popup.closeReload().then(function (data) {});
+      // No cerramos el widget
+      return true; // Indicar que el guardado fue exitoso
     } catch (error) {
       console.error("Error al guardar los cambios:", error);
-      Swal.fire({
+      await Swal.fire({
         icon: "error",
-        title: "Faltan campos de completar",
-        text: "Por favor, inténtalo de nuevo más tarde",
+        title: "Error al guardar los cambios",
+        text:
+          error.message ||
+          "Por favor, revisa los campos obligatorios e inténtalo de nuevo.",
+        confirmButtonText: "Corregir campos",
       });
+      // Propagar el error
+      throw error;
     }
   };
+
   const guardarYavanzar = async () => {
     try {
       await ejecutarFuncion(); // Llama al evento del hijo
-      // Crea un array de promesas para todas las actualizaciones
+
+      // Verificar todos los campos antes de intentar guardar
+      let validationError = false;
+      let errorMessages = [];
+
+      // Validar cada registro antes de intentar guardar
+      for (let i = 0; i < formSets.length; i++) {
+        try {
+          // Solo verificamos, no guardamos aún
+          await validateRecord(i, formSets[i]);
+        } catch (error) {
+          validationError = true;
+          errorMessages.push(`Registro ${i + 1}: ${error.message}`);
+        }
+      }
+
+      // Si hay errores de validación, mostrar y salir
+      if (validationError) {
+        await Swal.fire({
+          icon: "error",
+          title: "Faltan campos por completar",
+          text: errorMessages.join("\n"),
+          confirmButtonText: "Corregir campos",
+        });
+        return; // Importante: salir de la función sin avanzar
+      }
+
+      // Si llegamos aquí, todos los registros pasaron la validación
       const updatePromises = formSets.map((recordData, index) =>
         updateRecordInCRM(index, recordData)
       );
@@ -631,25 +875,33 @@ const Home = ({ datos, registerID, handleResize }) => {
         return newFormSets;
       });
 
-      Swal.fire({
+      // Mostrar mensaje de éxito
+      await Swal.fire({
         icon: "success",
-        title: "Cambios guardados ",
+        title: "Cambios guardados",
         showConfirmButton: false,
         timer: 2000,
       });
 
-      window.ZOHO.CRM.BLUEPRINT.();
+      // Solo proceder con el blueprint si no hay errores
+      window.ZOHO.CRM.BLUEPRINT.proceed();
     } catch (error) {
       console.error("Error al guardar los cambios:", error);
 
-      Swal.fire({
+      await Swal.fire({
         icon: "error",
         title: "Error al guardar los cambios",
-        text: "Por favor, inténtalo de nuevo más tarde",
+        text:
+          error.message ||
+          "Por favor, revisa los campos obligatorios e inténtalo de nuevo.",
+        confirmButtonText: "Corregir campos",
       });
+      // No proceder con el blueprint si hay errores
+      return;
     }
   };
-  const close = () => {
+
+  const closeW = () => {
     if (hasUnsavedChanges()) {
       Swal.fire({
         title: "¿Estás seguro?",
@@ -669,6 +921,7 @@ const Home = ({ datos, registerID, handleResize }) => {
       closeWidget();
     }
   };
+
   const handleOpen = () => {
     setDropOpen(!dropOpen);
   };
@@ -727,35 +980,182 @@ const Home = ({ datos, registerID, handleResize }) => {
         return;
       }
     }
-    if (fieldName === "Fecha_entrega_profesional") {
-      let fechaString = value.toString();
-      var req_data = {
-        arguments: JSON.stringify({
-          profesional: fechaString,
-        }),
-      };
-      try {
-        const data = await window.ZOHO.CRM.FUNCTIONS.execute(
-          "FechaClienteWidget",
-          req_data
-        );
-        setFormSets((prevFormSets) => {
-          const newFormSets = [...prevFormSets];
-          newFormSets[index] = {
-            ...newFormSets[index],
-            [fieldName]: value,
-            Fecha_entrega_cliente: data.details.output,
-            Editado_por_widget: true,
-          };
-          if (!modifiedIndexes.includes(index)) {
-            setModifiedIndexes((prev) => [...prev, index]);
-          }
-          console.log("newFormSets", newFormSets);
-          return newFormSets;
-        });
-      } catch (error) {
-        console.log(error);
+    if (
+      fieldName === "Fecha_produccion_interna" &&
+      datos?.Procesos_especiales === "PD produccion interna"
+    ) {
+      const profesionalDate = new Date(value);
+      const profesionalDateUTC = new Date(
+        Date.UTC(
+          profesionalDate.getUTCFullYear(),
+          profesionalDate.getUTCMonth(),
+          profesionalDate.getUTCDate()
+        )
+      );
+
+      let fechaProfesional = new Date(profesionalDateUTC);
+      fechaProfesional.setUTCDate(fechaProfesional.getUTCDate() + 7);
+      fechaProfesional = ajustarAFechaHabil(fechaProfesional); // Ajustar si cae en fin de semana
+
+      let fechaCliente = new Date(fechaProfesional);
+      fechaCliente.setUTCDate(fechaCliente.getUTCDate() + 4);
+      fechaCliente = ajustarAFechaHabil(fechaCliente); // Ajustar si cae en fin de semana
+
+      // Convertir a formato YYYY-MM-DD
+      const formattedProfecionalDate = fechaProfesional
+        .toISOString()
+        .split("T")[0];
+      const formattedClientDate = fechaCliente.toISOString().split("T")[0];
+
+      setFormSets((prevFormSets) => {
+        const newFormSets = [...prevFormSets];
+        newFormSets[index] = {
+          ...newFormSets[index],
+          [fieldName]: value,
+          Fecha_entrega_profesional: formattedProfecionalDate,
+          Fecha_entrega_cliente: formattedClientDate,
+          // Set default value for Estado_produccion_interna if it's empty
+          Estado_produccion_interna:
+            newFormSets[index].Estado_produccion_interna,
+          Editado_por_widget: true,
+        };
+        if (!modifiedIndexes.includes(index)) {
+          setModifiedIndexes((prev) => [...prev, index]);
+        }
+
+        return newFormSets;
+      });
+    }
+
+    /**
+     * Función para asegurarse de que una fecha no caiga en fin de semana.
+     * Si cae en sábado, se mueve al lunes siguiente.
+     * Si cae en domingo, se mueve al lunes siguiente.
+     */
+    function ajustarAFechaHabil(fecha) {
+      const diaSemana = fecha.getUTCDay();
+
+      if (diaSemana === 6) {
+        // Si es sábado, mover al lunes (2 días adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 2);
+      } else if (diaSemana === 0) {
+        // Si es domingo, mover al lunes (1 día adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 2);
+      } else if (diaSemana === 5) {
+        // Si es domingo, mover al lunes (1 día adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 3);
+      } else if (diaSemana === 1) {
+        // Si es domingo, mover al lunes (1 día adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 2);
+      } else if (diaSemana === 2) {
+        // Si es domingo, mover al lunes (1 día adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 2);
+      } else if (diaSemana === 3) {
+        // Si es domingo, mover al lunes (1 día adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 2);
+      } else if (diaSemana === 4) {
+        // Si es domingo, mover al lunes (1 día adelante)
+        fecha.setUTCDate(fecha.getUTCDate() + 4);
       }
+
+      return fecha;
+    }
+
+    if (
+      fieldName === "Fecha_entrega_profesional" &&
+      datos?.Procesos_especiales !== "PD produccion interna"
+    ) {
+      // Convert the professional delivery date to a Date object in UTC
+      const profesionalDate = new Date(value);
+      const profesionalDateUTC = new Date(
+        Date.UTC(
+          profesionalDate.getUTCFullYear(),
+          profesionalDate.getUTCMonth(),
+          profesionalDate.getUTCDate(),
+          profesionalDate.getUTCHours(),
+          profesionalDate.getUTCMinutes(),
+          profesionalDate.getUTCSeconds()
+        )
+      );
+
+      const profesionalDayOfWeek = profesionalDateUTC.getUTCDay();
+      const clientDate = new Date(profesionalDateUTC);
+
+      // Apply specific rules based on the day of the week
+      switch (profesionalDayOfWeek) {
+        case 4: // Thursday
+          // If professional date is Thursday, client date is next Monday (+4 days)
+          clientDate.setUTCDate(profesionalDateUTC.getUTCDate() + 4);
+          break;
+
+        case 5: // Friday
+          // If professional date is Friday, client date is next Tuesday (+4 days)
+          clientDate.setUTCDate(profesionalDateUTC.getUTCDate() + 4);
+          break;
+
+        case 6: // Saturday
+          // If professional date is Saturday, client date is next Tuesday (+3 days)
+          clientDate.setUTCDate(profesionalDateUTC.getUTCDate() + 3);
+          break;
+
+        default:
+          // For all other days, add 2 days (original rule)
+          clientDate.setUTCDate(profesionalDateUTC.getUTCDate() + 2);
+          break;
+      }
+
+      // Format the date as a string (adjust format as needed)
+      const formattedClientDate = clientDate.toISOString().split("T")[0];
+
+      setFormSets((prevFormSets) => {
+        const newFormSets = [...prevFormSets];
+        newFormSets[index] = {
+          ...newFormSets[index],
+          [fieldName]: value,
+          Fecha_entrega_cliente: formattedClientDate,
+          Editado_por_widget: true,
+        };
+        if (!modifiedIndexes.includes(index)) {
+          setModifiedIndexes((prev) => [...prev, index]);
+        }
+
+        return newFormSets;
+      });
+    } else if (
+      fieldName === "Fecha_entrega_profesional" &&
+      datos?.Procesos_especiales === "PD produccion interna"
+    ) {
+      // If manually modified in PD production mode, update client date with 4 business days
+      const profesionalDate = new Date(value);
+      const profesionalDateUTC = new Date(
+        Date.UTC(
+          profesionalDate.getUTCFullYear(),
+          profesionalDate.getUTCMonth(),
+          profesionalDate.getUTCDate()
+        )
+      );
+
+      // Calculate client date (4 business days after professional date)
+      let fechaCliente = new Date(profesionalDateUTC);
+      fechaCliente.setUTCDate(fechaCliente.getUTCDate() + 4);
+      fechaCliente = ajustarAFechaHabil(fechaCliente); // Adjust if weekend
+
+      // Format date as YYYY-MM-DD
+      const formattedClientDate = fechaCliente.toISOString().split("T")[0];
+
+      setFormSets((prevFormSets) => {
+        const newFormSets = [...prevFormSets];
+        newFormSets[index] = {
+          ...newFormSets[index],
+          [fieldName]: value,
+          Fecha_entrega_cliente: formattedClientDate,
+          Editado_por_widget: true,
+        };
+        if (!modifiedIndexes.includes(index)) {
+          setModifiedIndexes((prev) => [...prev, index]);
+        }
+        return newFormSets;
+      });
     } else if (fieldName === "Estado") {
       setFormSets((prevFormSets) => {
         const newFormSets = [...prevFormSets];
@@ -774,6 +1174,7 @@ const Home = ({ datos, registerID, handleResize }) => {
     } else {
       setFormSets((prevFormSets) => {
         const newFormSets = [...prevFormSets];
+
         newFormSets[index] = {
           ...newFormSets[index],
           [fieldName]: value,
@@ -901,8 +1302,6 @@ const Home = ({ datos, registerID, handleResize }) => {
     });
   };
   const especificRecords = async () => {
-    console.log("especific");
-
     try {
       const response = await getRelatedRecords(
         "Coordinacion",
@@ -922,6 +1321,9 @@ const Home = ({ datos, registerID, handleResize }) => {
               // Entrega_enviada_por_correo:
               //   updatedRecord.Entrega_enviada_por_correo,
               Workdrive_entrega: updatedRecord.Workdrive_entrega,
+              // Mantener el valor "Pendiente" como default para Estado_produccion_interna
+              Estado_produccion_interna:
+                updatedRecord.Estado_produccion_interna,
               // Otros campos que necesites actualizar
             };
           }
@@ -937,6 +1339,10 @@ const Home = ({ datos, registerID, handleResize }) => {
   };
 
   const motivo_no_procesada = getFieldValues(fields, "Motivo_no_procesada");
+  const Estado_produccion_interna = getFieldValues(
+    fields,
+    "Estado_produccion_interna"
+  );
 
   const STATUS_OPTIONS = {
     CO: [
@@ -977,7 +1383,7 @@ const Home = ({ datos, registerID, handleResize }) => {
               dark={dark}
               datos={datos}
               registerID={registerID}
-              close={close}
+              close={closeW}
               saveAllChanges={saveAllChanges}
               guardarYavanzar={guardarYavanzar}
             />
@@ -991,7 +1397,7 @@ const Home = ({ datos, registerID, handleResize }) => {
           </>
         ) : null}
       </div>
-      <div className="flex h-[calc(100vh-80px)]  relative ">
+      <div className="flex h-[calc(150vh-80px)]  relative ">
         {datos ? (
           <BarraNavegacionLateral
             datos={datos}
@@ -1000,6 +1406,8 @@ const Home = ({ datos, registerID, handleResize }) => {
             setFilter={setFilter}
             delAllRecords={delAllRecords}
             realizarGuardado={realizarGuardado}
+            formatDate={formatDate}
+            truncateText={truncateText}
           />
         ) : null}
 
@@ -1086,6 +1494,99 @@ const Home = ({ datos, registerID, handleResize }) => {
                           } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
                         />
                       </div>
+
+                      {datos?.Procesos_especiales ===
+                        "PD produccion interna" && (
+                        <>
+                          <div className=" flex items-center justify-between ">
+                            <label
+                              htmlFor="Name"
+                              className={`block  font-medium ${
+                                dark ? "text-white text" : "text-zinc-800"
+                              }  text-[16px] mr-4  `}
+                            >
+                              E. prod interna
+                            </label>
+                            <select
+                              id="Estado_produccion_interna"
+                              name="Estado_produccion_interna"
+                              value={form.Estado_produccion_interna}
+                              className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                                dark ? "bg-[#222631]" : "bg-white"
+                              } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  index,
+                                  "Estado_produccion_interna",
+                                  e.target.value
+                                )
+                              }
+                            >
+                              {Estado_produccion_interna?.map((e) => (
+                                <option
+                                  key={e.display_value}
+                                  value={e.display_value}
+                                >
+                                  {e.display_value}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className=" flex items-center justify-between ">
+                            <label
+                              htmlFor="Name"
+                              className={`block  font-medium ${
+                                dark ? "text-white text" : "text-zinc-800"
+                              }  text-[16px] mr-4  `}
+                            >
+                              Fecha. prod interna
+                            </label>
+                            <input
+                              type="date"
+                              id={`Fecha_produccion_interna_${index}`}
+                              name={`Fecha_produccion_interna_${index}`}
+                              value={form.Fecha_produccion_interna || ""}
+                              onChange={(e) => {
+                                handleFieldChange(
+                                  index,
+                                  "Fecha_produccion_interna",
+                                  e.target.value
+                                );
+                              }}
+                              className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                                dark ? "bg-[#222631]" : "bg-white"
+                              } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
+                            />
+                          </div>
+                          <div className=" flex items-center justify-between ">
+                            <label
+                              htmlFor="Name"
+                              className={`block  font-medium ${
+                                dark ? "text-white text" : "text-zinc-800"
+                              }  text-[16px] mr-4  `}
+                            >
+                              Fecha reag. prod interna
+                            </label>
+                            <input
+                              type="date"
+                              id={`Fecha_reagendada_prod_interna_${index}`}
+                              name={`Fecha_reagendada_prod_interna_${index}`}
+                              value={form.Fecha_reagendada_prod_interna || ""}
+                              onChange={(e) => {
+                                handleFieldChange(
+                                  index,
+                                  "Fecha_reagendada_prod_interna",
+                                  e.target.value
+                                );
+                              }}
+                              className={`block border-2 w-[125px]  text-center border-none p-1 rounded-md shadow-sm ${
+                                dark ? "bg-[#222631]" : "bg-white"
+                              } ${dark ? "text-[#dddee0]" : "text-zinc-800"}  `}
+                            />
+                          </div>
+                        </>
+                      )}
+
                       <div className="flex items-center justify-between  ">
                         <label
                           htmlFor="Estado"
@@ -1347,7 +1848,6 @@ const Home = ({ datos, registerID, handleResize }) => {
                         {form.Workdrive_entrega !== undefined &&
                         form.Workdrive_entrega !== null ? (
                           <img
-                            // onClick={() => togglePoRechazo(index)}
                             onClick={() => toggleCard(form.id)}
                             src={rechazo}
                             alt=""
@@ -1399,6 +1899,7 @@ const Home = ({ datos, registerID, handleResize }) => {
                           />
                         ) : null}
                       </div>
+                      {/* Card para el rechazo - Esta es la tarjeta que se mostrará/ocultará al hacer clic en la imagen de rechazo */}
                       <div
                         className={`card2 absolute flex justify-start left-0 ${
                           expandedCardId === form.id
@@ -1641,6 +2142,7 @@ const Home = ({ datos, registerID, handleResize }) => {
           records={records}
           datos={datos}
           dark={dark}
+          estadosProduccion={Estado_produccion_interna}
         />
       )}
       {showPopupCo && (
@@ -1653,6 +2155,7 @@ const Home = ({ datos, registerID, handleResize }) => {
           records={records}
           datos={datos}
           dark={dark}
+          estadosProduccion={Estado_produccion_interna}
         />
       )}
     </div>
